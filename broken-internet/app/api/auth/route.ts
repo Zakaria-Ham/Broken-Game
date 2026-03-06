@@ -1,0 +1,82 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { createHash } from 'crypto';
+import pool from '@/lib/db';
+
+function hashPassword(password: string): string {
+  return createHash('sha256').update(password + '_broken_internet_salt').digest('hex');
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { action, username, password } = body;
+
+    if (!username || typeof username !== 'string' || !password || typeof password !== 'string') {
+      return NextResponse.json({ error: 'Username and password are required' }, { status: 400 });
+    }
+
+    const clean = username.slice(0, 100).replace(/[^a-zA-Z0-9_-]/g, '');
+    if (clean.length < 2) {
+      return NextResponse.json({ error: 'Username must be at least 2 characters' }, { status: 400 });
+    }
+    if (password.length < 3) {
+      return NextResponse.json({ error: 'Password must be at least 3 characters' }, { status: 400 });
+    }
+
+    const hashed = hashPassword(password);
+
+    if (action === 'register') {
+      // Check if username exists
+      const existing = await pool.query('SELECT id FROM players WHERE username = $1', [clean]);
+      if (existing.rows.length > 0) {
+        return NextResponse.json({ error: 'Username already taken' }, { status: 409 });
+      }
+
+      const result = await pool.query(
+        'INSERT INTO players (username, password_hash) VALUES ($1, $2) RETURNING id, username, created_at',
+        [clean, hashed]
+      );
+
+      // Initialize level_progress rows
+      const levels = ['chess', 'button', 'cursor', 'login', 'timer'];
+      for (const level of levels) {
+        await pool.query(
+          'INSERT INTO level_progress (player_id, level_name) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+          [result.rows[0].id, level]
+        );
+      }
+
+      return NextResponse.json({
+        user: {
+          id: result.rows[0].id,
+          username: result.rows[0].username,
+          createdAt: result.rows[0].created_at,
+        },
+      });
+
+    } else if (action === 'login') {
+      const result = await pool.query(
+        'SELECT id, username, created_at FROM players WHERE username = $1 AND password_hash = $2',
+        [clean, hashed]
+      );
+
+      if (result.rows.length === 0) {
+        return NextResponse.json({ error: 'Invalid username or password' }, { status: 401 });
+      }
+
+      return NextResponse.json({
+        user: {
+          id: result.rows[0].id,
+          username: result.rows[0].username,
+          createdAt: result.rows[0].created_at,
+        },
+      });
+
+    } else {
+      return NextResponse.json({ error: 'Invalid action. Use "login" or "register"' }, { status: 400 });
+    }
+  } catch (err) {
+    console.error('Auth error:', err);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
