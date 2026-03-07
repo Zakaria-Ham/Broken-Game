@@ -50,7 +50,7 @@ const OBSTACLES: Obstacle[] = [
 //   { x: 1400, y: GY - 26, w: 26, h: 26, type: 'barrel', timer: 0 },
 //   { x: 2100, y: GY - 26, w: 26, h: 26, type: 'barrel', timer: 0 },
 //   { x: 2800, y: GY - 26, w: 26, h: 26, type: 'barrel', timer: 0 },
-  { x: 3800, y: GY - 26, w: 26, h: 26, type: 'barrel', timer: 0 },
+  { x: 3900, y: GY - 26, w: 26, h: 26, type: 'barrel', timer: 0 },
 
   { x: 1250, y: GY, w: 110, h: 110, type: 'gap' },
   { x: 2000, y: GY, w: 130, h: 110, type: 'gap' },
@@ -68,11 +68,11 @@ const OBSTACLES: Obstacle[] = [
 ];
 
 const SIGNS: Sign[] = [
-  { x: 30,   lines: ['"Sometimes the way', 'forward is backward."'], glow: false },
-  { x: 500,  lines: ['"Every racer goes right.', 'Nobody ever wins."'], glow: false },
-  { x: 1700, lines: ['"You cannot outrun', 'what awaits you."'], glow: false },
+  { x: 30,   lines: ['"Clean the mirror"'], glow: false },
+  { x: 500,  lines: ['" If women goes right ','men goes left"'], glow: false },
+  { x: 1700, lines: ['"Avenci laryare"'], glow: false },
   { x: 2700, lines: ['"Think different.', 'Drive different."'], glow: false },
-  { x: 3500, lines: ['"TURN BACK', 'WHILE YOU CAN"'], glow: true },
+  { x: 3500, lines: ['"I Told you', 'Trik sed ma tdi ma trad "'], glow: true },
 ];
 
 const GHOSTS: Ghost[] = [
@@ -355,16 +355,16 @@ export default function RaceLevel() {
         }
       }
 
-      // Secret trigger
-      if (g.carX < SECRET_X && !g.secretTriggered) {
+      // Secret trigger — must be boosting backward (nitro + left)
+      if (g.carX < SECRET_X && !g.secretTriggered && g.velX < -3.5 && g.boost > 0) {
         g.secretTriggered = true;
         setSecretFound(true);
         shake(5);
         spawnParticles(g.carX, GY, 20, '#ff8800', 5, true);
       }
 
-      // Tunnel entrance
-      if (g.carX < TUNNEL_X && g.secretTriggered && !g.inTunnel) {
+      // Tunnel entrance — must still be boosting backward
+      if (g.carX < TUNNEL_X && g.secretTriggered && !g.inTunnel && g.velX < -3.5 && g.boost > 0) {
         g.inTunnel = true;
         g.tunnelProg = 0;
         setInTunnel(true);
