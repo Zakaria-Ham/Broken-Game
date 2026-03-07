@@ -36,6 +36,17 @@ const initPromise = pool.query(`
   CREATE INDEX IF NOT EXISTS idx_level_progress_player ON level_progress(player_id);
   CREATE INDEX IF NOT EXISTS idx_level_progress_level ON level_progress(level_name);
 `).then(() => {
+  // Ensure all players have rows for every level (handles new levels added after registration)
+  const levels = ['chess', 'button', 'cursor', 'login', 'timer', 'checkmate'];
+  return Promise.all(levels.map(lvl =>
+    pool.query(
+      `INSERT INTO level_progress (player_id, level_name)
+       SELECT p.id, $1 FROM players p
+       WHERE NOT EXISTS (SELECT 1 FROM level_progress lp WHERE lp.player_id = p.id AND lp.level_name = $1)`,
+      [lvl]
+    )
+  ));
+}).then(() => {
   console.log('✓ Database tables ready');
 }).catch((err) => {
   console.error('✗ Database init failed:', err.message);

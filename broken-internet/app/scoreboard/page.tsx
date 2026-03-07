@@ -116,7 +116,7 @@ export default function ScoreboardPage() {
                   fontFamily: 'var(--font-pixel)', fontSize: '10px',
                   color: entry.levelsCompleted === 5 ? 'var(--accent-green)' : 'var(--text-secondary)',
                 }}>
-                  {entry.levelsCompleted}/5
+                  {entry.levelsCompleted}/6
                 </span>
 
                 <span style={{

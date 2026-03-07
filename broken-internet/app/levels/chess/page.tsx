@@ -36,7 +36,7 @@ export default function ChessLevel() {
     if (!piece) return;
 
     // The secret: click the queen (black queen at 0,3 or white queen at 7,3)
-    if (piece === 'q' || piece === 'Q') {
+    if (piece === 'q' ) {
       const newBoard = board.map(r => [...r]);
       newBoard[row][col] = '';
       setBoard(newBoard);

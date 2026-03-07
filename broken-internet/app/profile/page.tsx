@@ -202,7 +202,7 @@ export default function ProfilePage() {
                 Levels
               </div>
               <div style={{ fontFamily: 'var(--font-pixel)', fontSize: '18px', color: 'var(--accent-green)', marginTop: '4px' }}>
-                {completedCount}/5
+                {completedCount}/6
               </div>
             </div>
             <div style={{ background: '#1a1a1a', padding: '14px', borderRadius: '6px' }}>

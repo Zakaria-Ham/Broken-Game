@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
 
-const VALID_LEVELS = ['chess', 'button', 'cursor', 'login', 'timer'];
+const VALID_LEVELS = ['chess', 'button', 'cursor', 'login', 'timer', 'checkmate'];
 
 async function getPlayerData(username: string) {
   const playerRes = await pool.query(
@@ -76,7 +76,7 @@ export async function POST(request: NextRequest) {
           [playerId]
         );
         const levelsCompleted = parseInt(countRes.rows[0].cnt);
-        const allDone = levelsCompleted >= 5;
+        const allDone = levelsCompleted >= 6;
         await pool.query(
           `UPDATE players SET levels_completed = $1, completed_at = CASE WHEN $2 AND completed_at IS NULL THEN $3 ELSE completed_at END, updated_at = NOW() WHERE id = $4`,
           [levelsCompleted, allDone, now, playerId]

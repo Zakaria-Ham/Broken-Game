@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
       );
 
       // Initialize level_progress rows
-      const levels = ['chess', 'button', 'cursor', 'login', 'timer'];
+      const levels = ['chess', 'button', 'cursor', 'login', 'timer', 'checkmate'];
       for (const level of levels) {
         await pool.query(
           'INSERT INTO level_progress (player_id, level_name) VALUES ($1, $2) ON CONFLICT DO NOTHING',
