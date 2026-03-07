@@ -140,7 +140,7 @@ export default function HubPage() {
         position: 'relative',
         zIndex: 1,
       }}>
-        {completedCount}/6 websites fixed — {completedCount === 6 ? 'ALL CLEARED!' : 'choose a portal'}
+        {completedCount}/7 websites fixed — {completedCount === 7 ? 'ALL CLEARED!' : 'choose a portal'}
       </p>
 
       {/* Portals grid */}
@@ -161,6 +161,7 @@ export default function HubPage() {
         <Portal level="login" label="Login" href="/levels/login" color="#aa44ff" />
         <Portal level="timer" label="Timer" href="/levels/timer" color="#00ff88" />
         <Portal level="checkmate" label="Checkmate" href="/levels/checkmate" color="#ff8800" />
+        <Portal level="race" label="Race" href="/levels/race" color="#00ccff" />
       </div>
 
       {/* Final portal */}

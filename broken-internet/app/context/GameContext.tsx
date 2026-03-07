@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
 
-export type LevelName = 'chess' | 'button' | 'cursor' | 'login' | 'timer' | 'checkmate';
+export type LevelName = 'chess' | 'button' | 'cursor' | 'login' | 'timer' | 'checkmate' | 'race';
 
 interface LevelState {
   completed: boolean;
@@ -57,6 +57,7 @@ const initialGameState: GameState = {
     login: { ...defaultLevelState },
     timer: { ...defaultLevelState },
     checkmate: { ...defaultLevelState },
+    race: { ...defaultLevelState },
   },
   totalAttempts: 0,
   allCompleted: false,
@@ -71,7 +72,12 @@ function loadState(): GameState {
   if (typeof window === 'undefined') return initialGameState;
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) return JSON.parse(saved);
+    if (saved) {
+      const parsed = JSON.parse(saved) as GameState;
+      // Backfill any newly added levels missing from old saved state
+      const levels = { ...initialGameState.levels, ...parsed.levels };
+      return { ...parsed, levels };
+    }
   } catch {}
   return initialGameState;
 }
@@ -84,7 +90,7 @@ function saveState(state: GameState) {
 // Sync local state from API player data
 function applyServerData(prev: GameState, data: { levels: Record<string, { completed: boolean; attempts: number; completedAt: number | null }>; total_attempts: number; started_at: number | null; completed_at: number | null; levels_completed: number }): GameState {
   const levels = { ...prev.levels } as Record<LevelName, LevelState>;
-  for (const key of ['chess', 'button', 'cursor', 'login', 'timer', 'checkmate'] as LevelName[]) {
+  for (const key of ['chess', 'button', 'cursor', 'login', 'timer', 'checkmate', 'race'] as LevelName[]) {
     if (data.levels[key]) {
       levels[key] = {
         completed: data.levels[key].completed,
@@ -188,6 +194,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         login: { ...defaultLevelState },
         timer: { ...defaultLevelState },
         checkmate: { ...defaultLevelState },
+        race: { ...defaultLevelState },
       },
       profile,
       startedAt: null,
