@@ -187,8 +187,8 @@ export default function CheckmateLevel() {
           marginBottom: '4px', textAlign: 'center',
           textShadow: phase === 'stuck' ? '0 0 8px rgba(255,0,0,0.3)' : '0 0 8px rgba(0,255,100,0.3)',
         }}>
-          {phase === 'stuck' && 'You are Black. White is about to crush you!'}
-          {phase === 'flipped' && 'You are White now! Deliver checkmate in 1!'}
+          {phase === 'stuck' && 'You are White. Black is about to crush you!'}
+          {phase === 'flipped' && 'You are Black now! Deliver checkmate in 1!'}
           {phase === 'won' && 'Checkmate!'}
         </p>
 
@@ -204,18 +204,7 @@ export default function CheckmateLevel() {
               onClick={handleSecretRotate}
               style={{
                 color: '#777',
-                cursor: 'inherit',
-                transition: 'text-shadow 0.3s, color 0.3s',
-              }}
-              onMouseEnter={e => {
-                e.currentTarget.style.textShadow = '0 0 8px rgba(255,200,0,0.5)';
-                e.currentTarget.style.color = '#999';
-                e.currentTarget.style.cursor = 'pointer';
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.textShadow = 'none';
-                e.currentTarget.style.color = '#777';
-                e.currentTarget.style.cursor = 'inherit';
+                cursor: 'default',
               }}
             >
               return the table

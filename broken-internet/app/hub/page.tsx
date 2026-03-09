@@ -15,16 +15,16 @@ function formatTime(ms: number): string {
 }
 
 export default function HubPage() {
-  const { gameState, startTimer } = useGame();
+  const { gameState } = useGame();
   const router = useRouter();
   const [entered, setEntered] = useState(false);
   const [elapsed, setElapsed] = useState(0);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
     setEntered(true);
-    // Start the game timer on first hub visit
-    startTimer();
-  }, [startTimer]);
+  }, []);
 
   // Live timer tick
   useEffect(() => {
@@ -40,7 +40,8 @@ export default function HubPage() {
   }, [gameState.startedAt, gameState.completedAt]);
 
   const completedCount = Object.values(gameState.levels).filter(l => l.completed).length;
-  const profile = gameState.profile;
+  const profile = mounted ? gameState.profile : null;
+  const allCompleted = mounted ? gameState.allCompleted : false;
 
   return (
     <div style={{
@@ -97,11 +98,11 @@ export default function HubPage() {
         {/* Center: timer */}
         <div style={{
           fontFamily: 'var(--font-pixel)', fontSize: '11px',
-          color: gameState.allCompleted ? 'var(--accent-green)' : 'var(--accent-yellow)',
-          textShadow: gameState.allCompleted ? '0 0 10px rgba(0,255,136,0.4)' : 'none',
+          color: allCompleted ? 'var(--accent-green)' : 'var(--accent-yellow)',
+          textShadow: allCompleted ? '0 0 10px rgba(0,255,136,0.4)' : 'none',
         }}>
-          ⏱ {elapsed > 0 ? formatTime(elapsed) : '0s'}
-          {gameState.allCompleted && ' ★'}
+          ⏱ {gameState.startedAt ? (elapsed > 0 ? formatTime(elapsed) : '0s') : '—'}
+          {allCompleted && ' ★'}
         </div>
 
         {/* Right: scoreboard */}
@@ -165,7 +166,7 @@ export default function HubPage() {
       </div>
 
       {/* Final portal */}
-      {gameState.allCompleted && (
+      {allCompleted && (
         <div
           onClick={() => router.push('/')}
           style={{

@@ -19,12 +19,12 @@ const MAX_SPD = 5.5;
 const ACCEL = 0.22;
 const FRIC = 0.08;
 const BOOST_SPD = 9;
-const BOOST_DUR = 30;
+const BOOST_DUR = 90;
 const JUMP_VEL = -9;           // up arrow jump
 const START_X = 120;
 const FINISH_X = 5200;
-const SECRET_X = -90;
-const TUNNEL_X = -220;
+const SECRET_X = -250;
+const TUNNEL_X = -500;
 const TUNNEL_EXIT = 5000;
 const COUNTDOWN_FRAMES = 180;  // 3-second countdown
 
@@ -60,6 +60,8 @@ const OBSTACLES: Obstacle[] = [
   { x: 1800, y: GY - 8, w: 60, h: 8,  type: 'spikes' },
   { x: 2600, y: GY - 8, w: 80, h: 8,  type: 'spikes' },
   { x: 3200, y: GY - 8, w: 70, h: 8,  type: 'spikes' },
+  { x: -950, y: GY - 8, w: 70, h: 8,  type: 'spikes' },
+  { x: -900, y: GY - 8, w: 70, h: 8,  type: 'spikes' },
 
   { x: 4000, y: GY - 120, w: 6, h: 120, type: 'laser', timer: 0 },
   { x: 4300, y: GY - 120, w: 6, h: 120, type: 'laser', timer: 0 },
@@ -247,7 +249,7 @@ export default function RaceLevel() {
       if (g.keys.right) {
         g.velX = Math.min(g.velX + ACCEL, g.boost > 0 ? BOOST_SPD : MAX_SPD);
       } else if (g.keys.left) {
-        g.velX = Math.max(g.velX - ACCEL, -MAX_SPD);
+        g.velX = Math.max(g.velX - ACCEL, g.boost > 0 ? -BOOST_SPD : -MAX_SPD);
       } else {
         if (g.velX > 0) g.velX = Math.max(0, g.velX - FRIC);
         if (g.velX < 0) g.velX = Math.min(0, g.velX + FRIC);
@@ -355,8 +357,8 @@ export default function RaceLevel() {
         }
       }
 
-      // Secret trigger — must be boosting backward (nitro + left)
-      if (g.carX < SECRET_X && !g.secretTriggered && g.velX < -3.5 && g.boost > 0) {
+      // Secret trigger — must be boosting backward
+      if (g.carX < SECRET_X && !g.secretTriggered && g.velX < -MAX_SPD && g.boost > 0) {
         g.secretTriggered = true;
         setSecretFound(true);
         shake(5);
@@ -364,7 +366,7 @@ export default function RaceLevel() {
       }
 
       // Tunnel entrance — must still be boosting backward
-      if (g.carX < TUNNEL_X && g.secretTriggered && !g.inTunnel && g.velX < -3.5 && g.boost > 0) {
+      if (g.carX < TUNNEL_X && g.secretTriggered && !g.inTunnel && g.velX < -MAX_SPD && g.boost > 0) {
         g.inTunnel = true;
         g.tunnelProg = 0;
         setInTunnel(true);

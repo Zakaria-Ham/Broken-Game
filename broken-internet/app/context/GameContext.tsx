@@ -142,16 +142,25 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const completeLevel = useCallback((level: LevelName) => {
     setGameState(prev => {
       const now = Date.now();
+      // Auto-start timer on first level interaction
+      const startedAt = prev.startedAt || now;
       const newLevels = {
         ...prev.levels,
         [level]: { ...prev.levels[level], completed: true, completedAt: now },
       };
       const allCompleted = Object.values(newLevels).every(l => l.completed);
       const completedAt = allCompleted && !prev.completedAt ? now : prev.completedAt;
-      const newState = { ...prev, levels: newLevels, allCompleted, completedAt };
+      const newState = { ...prev, levels: newLevels, allCompleted, completedAt, startedAt };
 
       // Sync to server
       if (prev.profile) {
+        if (!prev.startedAt) {
+          fetch('/api/progress', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'start_timer', username: prev.profile.username }),
+          }).catch(() => {});
+        }
         fetch('/api/progress', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -165,13 +174,22 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
   const addAttempt = useCallback((level: LevelName) => {
     setGameState(prev => {
+      // Auto-start timer on first level interaction
+      const startedAt = prev.startedAt || Date.now();
       const newLevels = {
         ...prev.levels,
         [level]: { ...prev.levels[level], attempts: prev.levels[level].attempts + 1 },
       };
-      const newState = { ...prev, levels: newLevels, totalAttempts: prev.totalAttempts + 1 };
+      const newState = { ...prev, levels: newLevels, totalAttempts: prev.totalAttempts + 1, startedAt };
 
       if (prev.profile) {
+        if (!prev.startedAt) {
+          fetch('/api/progress', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'start_timer', username: prev.profile.username }),
+          }).catch(() => {});
+        }
         fetch('/api/progress', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

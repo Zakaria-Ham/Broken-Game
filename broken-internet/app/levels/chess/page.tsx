@@ -29,23 +29,32 @@ export default function ChessLevel() {
   const [solved, setSolved] = useState(false);
   const [shakeMsg, setShakeMsg] = useState('');
   const [dragAttempted, setDragAttempted] = useState(false);
+  const [kingClicks, setKingClicks] = useState(0);
 
   const handlePieceClick = (row: number, col: number) => {
     if (solved) return;
     const piece = board[row][col];
     if (!piece) return;
 
-    // The secret: click the queen (black queen at 0,3 or white queen at 7,3)
-    if (piece === 'q' ) {
-      const newBoard = board.map(r => [...r]);
-      newBoard[row][col] = '';
-      setBoard(newBoard);
-      setSolved(true);
-      completeLevel('chess');
+    // The secret: click the black king 3 times in a row
+    if (piece === 'k') {
+      const next = kingClicks + 1;
+      if (next >= 5) {
+        const newBoard = board.map(r => [...r]);
+        newBoard[row][col] = '';
+        setBoard(newBoard);
+        setSolved(true);
+        completeLevel('chess');
+        return;
+      }
+      setKingClicks(next);
+      setShakeMsg(next === 1 ? 'The king trembles...' : 'The king is cracking...');
+      setTimeout(() => setShakeMsg(''), 1500);
       return;
     }
 
-    // Wrong piece clicked
+    // Wrong piece clicked — reset king click streak
+    setKingClicks(0);
     addAttempt('chess');
     setShakeMsg('Nothing happens. The pieces refuse to obey.');
     setTimeout(() => setShakeMsg(''), 2000);
@@ -145,7 +154,7 @@ export default function ChessLevel() {
 
         {solved && (
           <MessageBox
-            message="You broke the rules. The queen is dead. Level complete."
+            message="You broke the rules. The king is dead. Level complete."
             type="success"
             onClose={() => router.push('/hub')}
           />
