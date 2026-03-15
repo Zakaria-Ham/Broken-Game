@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
 
-export type LevelName = 'chess' | 'button' | 'cursor' | 'login' | 'timer' | 'checkmate' | 'race';
+export type LevelName = 'chess' | 'button' | 'cursor' | 'login' | 'timer' | 'checkmate' | 'race' | 'cursed';
 
 interface LevelState {
   completed: boolean;
@@ -58,6 +58,7 @@ const initialGameState: GameState = {
     timer: { ...defaultLevelState },
     checkmate: { ...defaultLevelState },
     race: { ...defaultLevelState },
+    cursed: { ...defaultLevelState },
   },
   totalAttempts: 0,
   allCompleted: false,
@@ -90,7 +91,7 @@ function saveState(state: GameState) {
 // Sync local state from API player data
 function applyServerData(prev: GameState, data: { levels: Record<string, { completed: boolean; attempts: number; completedAt: number | null }>; total_attempts: number; started_at: number | null; completed_at: number | null; levels_completed: number }): GameState {
   const levels = { ...prev.levels } as Record<LevelName, LevelState>;
-  for (const key of ['chess', 'button', 'cursor', 'login', 'timer', 'checkmate', 'race'] as LevelName[]) {
+  for (const key of ['chess', 'button', 'cursor', 'login', 'timer', 'checkmate', 'race', 'cursed'] as LevelName[]) {
     if (data.levels[key]) {
       levels[key] = {
         completed: data.levels[key].completed,
@@ -213,6 +214,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         timer: { ...defaultLevelState },
         checkmate: { ...defaultLevelState },
         race: { ...defaultLevelState },
+        cursed: { ...defaultLevelState },
       },
       profile,
       startedAt: null,

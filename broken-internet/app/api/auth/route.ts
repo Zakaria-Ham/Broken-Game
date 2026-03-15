@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createHash } from 'crypto';
-import pool from '@/lib/db';
+import db, { isDatabaseConfigurationError } from '@/lib/db';
 
 function hashPassword(password: string): string {
   return createHash('sha256').update(password + '_broken_internet_salt').digest('hex');
@@ -27,12 +27,12 @@ export async function POST(request: NextRequest) {
 
     if (action === 'register') {
       // Check if username exists
-      const existing = await pool.query('SELECT id FROM players WHERE username = $1', [clean]);
+      const existing = await db.query('SELECT id FROM players WHERE username = $1', [clean]);
       if (existing.rows.length > 0) {
         return NextResponse.json({ error: 'Username already taken' }, { status: 409 });
       }
 
-      const result = await pool.query(
+      const result = await db.query(
         'INSERT INTO players (username, password_hash) VALUES ($1, $2) RETURNING id, username, created_at',
         [clean, hashed]
       );
@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
       // Initialize level_progress rows
       const levels = ['chess', 'button', 'cursor', 'login', 'timer', 'checkmate', 'race'];
       for (const level of levels) {
-        await pool.query(
+        await db.query(
           'INSERT INTO level_progress (player_id, level_name) VALUES ($1, $2) ON CONFLICT DO NOTHING',
           [result.rows[0].id, level]
         );
@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
       });
 
     } else if (action === 'login') {
-      const result = await pool.query(
+      const result = await db.query(
         'SELECT id, username, created_at FROM players WHERE username = $1 AND password_hash = $2',
         [clean, hashed]
       );
@@ -76,6 +76,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid action. Use "login" or "register"' }, { status: 400 });
     }
   } catch (err) {
+    if (isDatabaseConfigurationError(err)) {
+      return NextResponse.json({ error: 'Database is not configured on the server' }, { status: 503 });
+    }
     console.error('Auth error:', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
