@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
-import pool from '@/lib/db';
+import db, { isDatabaseConfigurationError } from '@/lib/db';
 
 export async function GET() {
   try {
-    const result = await pool.query(`
+    const result = await db.query(`
       SELECT
         username,
         levels_completed,
@@ -32,6 +32,9 @@ export async function GET() {
 
     return NextResponse.json({ scoreboard });
   } catch (err) {
+    if (isDatabaseConfigurationError(err)) {
+      return NextResponse.json({ error: 'Database is not configured on the server' }, { status: 503 });
+    }
     console.error('Scoreboard error:', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

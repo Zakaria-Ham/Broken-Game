@@ -1,17 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
-import pool from '@/lib/db';
+import db, { isDatabaseConfigurationError } from '@/lib/db';
 
 const VALID_LEVELS = ['chess', 'button', 'cursor', 'login', 'timer', 'checkmate', 'race'];
 
 async function getPlayerData(username: string) {
-  const playerRes = await pool.query(
+  const playerRes = await db.query(
     'SELECT id, username, levels_completed, total_attempts, started_at, completed_at FROM players WHERE username = $1',
     [username]
   );
   if (playerRes.rows.length === 0) return null;
 
   const player = playerRes.rows[0];
-  const levelsRes = await pool.query(
+  const levelsRes = await db.query(
     'SELECT level_name, completed, attempts, completed_at FROM level_progress WHERE player_id = $1',
     [player.id]
   );
@@ -57,13 +57,13 @@ export async function POST(request: NextRequest) {
         if (!level_name || !VALID_LEVELS.includes(level_name)) {
           return NextResponse.json({ error: 'Invalid level name' }, { status: 400 });
         }
-        const playerRes = await pool.query('SELECT id FROM players WHERE username = $1', [clean]);
+        const playerRes = await db.query('SELECT id FROM players WHERE username = $1', [clean]);
         if (playerRes.rows.length === 0) return NextResponse.json({ error: 'Player not found' }, { status: 404 });
         const playerId = playerRes.rows[0].id;
         const now = Date.now();
 
         // Mark level completed
-        await pool.query(
+        await db.query(
           `INSERT INTO level_progress (player_id, level_name, completed, completed_at)
            VALUES ($1, $2, true, $3)
            ON CONFLICT (player_id, level_name) DO UPDATE SET completed = true, completed_at = COALESCE(level_progress.completed_at, $3)`,
@@ -71,13 +71,13 @@ export async function POST(request: NextRequest) {
         );
 
         // Update player stats
-        const countRes = await pool.query(
+        const countRes = await db.query(
           'SELECT COUNT(*) as cnt FROM level_progress WHERE player_id = $1 AND completed = true',
           [playerId]
         );
         const levelsCompleted = parseInt(countRes.rows[0].cnt);
         const allDone = levelsCompleted >= 7;
-        await pool.query(
+        await db.query(
           `UPDATE players SET levels_completed = $1, completed_at = CASE WHEN $2 AND completed_at IS NULL THEN $3 ELSE completed_at END, updated_at = NOW() WHERE id = $4`,
           [levelsCompleted, allDone, now, playerId]
         );
@@ -90,17 +90,17 @@ export async function POST(request: NextRequest) {
         if (!level_name || !VALID_LEVELS.includes(level_name)) {
           return NextResponse.json({ error: 'Invalid level name' }, { status: 400 });
         }
-        const playerRes = await pool.query('SELECT id FROM players WHERE username = $1', [clean]);
+        const playerRes = await db.query('SELECT id FROM players WHERE username = $1', [clean]);
         if (playerRes.rows.length === 0) return NextResponse.json({ error: 'Player not found' }, { status: 404 });
         const playerId = playerRes.rows[0].id;
 
-        await pool.query(
+        await db.query(
           `INSERT INTO level_progress (player_id, level_name, attempts)
            VALUES ($1, $2, 1)
            ON CONFLICT (player_id, level_name) DO UPDATE SET attempts = level_progress.attempts + 1`,
           [playerId, level_name]
         );
-        await pool.query(
+        await db.query(
           'UPDATE players SET total_attempts = total_attempts + 1, updated_at = NOW() WHERE id = $1',
           [playerId]
         );
@@ -111,7 +111,7 @@ export async function POST(request: NextRequest) {
 
       case 'start_timer': {
         const now = Date.now();
-        await pool.query(
+        await db.query(
           'UPDATE players SET started_at = COALESCE(started_at, $1), updated_at = NOW() WHERE username = $2',
           [now, clean]
         );
@@ -120,18 +120,18 @@ export async function POST(request: NextRequest) {
       }
 
       case 'reset': {
-        const playerRes = await pool.query('SELECT id FROM players WHERE username = $1', [clean]);
+        const playerRes = await db.query('SELECT id FROM players WHERE username = $1', [clean]);
         if (playerRes.rows.length === 0) return NextResponse.json({ error: 'Player not found' }, { status: 404 });
         const playerId = playerRes.rows[0].id;
 
-        await pool.query('DELETE FROM level_progress WHERE player_id = $1', [playerId]);
-        await pool.query(
+        await db.query('DELETE FROM level_progress WHERE player_id = $1', [playerId]);
+        await db.query(
           'UPDATE players SET levels_completed = 0, total_attempts = 0, started_at = NULL, completed_at = NULL, updated_at = NOW() WHERE id = $1',
           [playerId]
         );
         // Re-init level rows
         for (const lvl of VALID_LEVELS) {
-          await pool.query('INSERT INTO level_progress (player_id, level_name) VALUES ($1, $2)', [playerId, lvl]);
+          await db.query('INSERT INTO level_progress (player_id, level_name) VALUES ($1, $2)', [playerId, lvl]);
         }
 
         const player = await getPlayerData(clean);
@@ -142,6 +142,9 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
     }
   } catch (err) {
+    if (isDatabaseConfigurationError(err)) {
+      return NextResponse.json({ error: 'Database is not configured on the server' }, { status: 503 });
+    }
     console.error('Progress API error:', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
