@@ -53,7 +53,7 @@ async function ensureInitialized() {
       `)
       .then(async () => {
         // Ensure all players have rows for every level (handles newly added levels).
-        const levels = ['chess', 'button', 'cursor', 'login', 'timer', 'checkmate', 'race'];
+        const levels = ['chess', 'button', 'cursor', 'login', 'timer', 'checkmate', 'race', 'cursed', 'bedroom'];
         await Promise.all(
           levels.map((lvl) =>
             pool.query(

@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
 
-export type LevelName = 'chess' | 'button' | 'cursor' | 'login' | 'timer' | 'checkmate' | 'race' | 'cursed';
+export type LevelName = 'chess' | 'button' | 'cursor' | 'login' | 'timer' | 'checkmate' | 'race' | 'cursed' | 'bedroom' | 'blue-dot';
 
 interface LevelState {
   completed: boolean;
@@ -28,6 +28,7 @@ interface GameContextType {
   gameState: GameState;
   completeLevel: (level: LevelName) => void;
   addAttempt: (level: LevelName) => void;
+  adjustSpeedrunTime: (deltaMs: number) => void;
   resetGame: () => void;
   isLevelCompleted: (level: LevelName) => boolean;
   getLevelAttempts: (level: LevelName) => number;
@@ -59,6 +60,8 @@ const initialGameState: GameState = {
     checkmate: { ...defaultLevelState },
     race: { ...defaultLevelState },
     cursed: { ...defaultLevelState },
+    bedroom: { ...defaultLevelState },
+    'blue-dot': { ...defaultLevelState },
   },
   totalAttempts: 0,
   allCompleted: false,
@@ -91,7 +94,7 @@ function saveState(state: GameState) {
 // Sync local state from API player data
 function applyServerData(prev: GameState, data: { levels: Record<string, { completed: boolean; attempts: number; completedAt: number | null }>; total_attempts: number; started_at: number | null; completed_at: number | null; levels_completed: number }): GameState {
   const levels = { ...prev.levels } as Record<LevelName, LevelState>;
-  for (const key of ['chess', 'button', 'cursor', 'login', 'timer', 'checkmate', 'race', 'cursed'] as LevelName[]) {
+  for (const key of ['chess', 'button', 'cursor', 'login', 'timer', 'checkmate', 'race', 'cursed', 'bedroom', 'blue-dot'] as LevelName[]) {
     if (data.levels[key]) {
       levels[key] = {
         completed: data.levels[key].completed,
@@ -202,6 +205,19 @@ export function GameProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const adjustSpeedrunTime = useCallback((deltaMs: number) => {
+    setGameState(prev => {
+      const now = Date.now();
+      const startedAtBase = prev.startedAt ?? now;
+      const adjustedStartedAt = Math.min(startedAtBase - deltaMs, now);
+
+      return {
+        ...prev,
+        startedAt: adjustedStartedAt,
+      };
+    });
+  }, []);
+
   const resetGame = useCallback(() => {
     const profile = gameState.profile;
     const newState: GameState = {
@@ -215,6 +231,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
         checkmate: { ...defaultLevelState },
         race: { ...defaultLevelState },
         cursed: { ...defaultLevelState },
+        bedroom: { ...defaultLevelState },
+        'blue-dot': { ...defaultLevelState },
       },
       profile,
       startedAt: null,
@@ -333,7 +351,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   return (
     <GameContext.Provider
       value={{
-        gameState, completeLevel, addAttempt, resetGame,
+        gameState, completeLevel, addAttempt, adjustSpeedrunTime, resetGame,
         isLevelCompleted, getLevelAttempts,
         loginUser, registerUser, logoutUser,
         startTimer, getElapsedTime, getAllProfiles,

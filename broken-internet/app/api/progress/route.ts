@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import db, { isDatabaseConfigurationError } from '@/lib/db';
 
-const VALID_LEVELS = ['chess', 'button', 'cursor', 'login', 'timer', 'checkmate', 'race'];
+const VALID_LEVELS = ['chess', 'button', 'cursor', 'login', 'timer', 'checkmate', 'race', 'cursed', 'bedroom', 'blue-dot'];
 
 async function getPlayerData(username: string) {
   const playerRes = await db.query(
@@ -76,7 +76,7 @@ export async function POST(request: NextRequest) {
           [playerId]
         );
         const levelsCompleted = parseInt(countRes.rows[0].cnt);
-        const allDone = levelsCompleted >= 7;
+        const allDone = levelsCompleted >= VALID_LEVELS.length;
         await db.query(
           `UPDATE players SET levels_completed = $1, completed_at = CASE WHEN $2 AND completed_at IS NULL THEN $3 ELSE completed_at END, updated_at = NOW() WHERE id = $4`,
           [levelsCompleted, allDone, now, playerId]
