@@ -141,7 +141,7 @@ export default function HubPage() {
         position: 'relative',
         zIndex: 1,
       }}>
-        {completedCount}/11 websites fixed — {completedCount === 11 ? 'ALL CLEARED!' : 'choose a portal'}
+        {completedCount}/13 websites fixed — {completedCount === 13 ? 'ALL CLEARED!' : 'choose a portal'}
       </p>
 
       {/* Portals grid */}
@@ -162,11 +162,13 @@ export default function HubPage() {
         <Portal level="login" label="Login" href="/levels/login" color="#aa44ff" />
         <Portal level="timer" label="Timer" href="/levels/timer" color="#00ff88" />
         <Portal level="checkmate" label="Checkmate" href="/levels/checkmate" color="#ff8800" />
+        <Portal level="lights" label="Turn Light On" href="/levels/lights" color="#ffd166" />
         <Portal level="race" label="Race" href="/levels/race" color="#00ccff" />
         <Portal level="cursed" label="Cursed Domain" href="/levels/cursed" color="#8B00FF" />
         <Portal level="bedroom" label="Bedroom" href="/levels/bedroom-0804" color="#ff6699" />
         <Portal level="blue-dot" label="Blue Dot" href="/levels/blue-dot" color="#2d7dff" />
         <Portal level="labyrinth" label="Labyrinth" href="/levels/labyrinth" color="#22d4aa" />
+        <Portal level="rubik" label="Rubik Glitch" href="/levels/rubik" color="#fca311" />
       </div>
 
       {/* Final portal */}

@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
 
-export type LevelName = 'chess' | 'button' | 'cursor' | 'login' | 'timer' | 'checkmate' | 'race' | 'cursed' | 'bedroom' | 'blue-dot' | 'labyrinth';
+export type LevelName = 'chess' | 'button' | 'cursor' | 'login' | 'timer' | 'checkmate' | 'lights' | 'race' | 'cursed' | 'bedroom' | 'blue-dot' | 'labyrinth' | 'rubik';
 
 interface LevelState {
   completed: boolean;
@@ -58,11 +58,13 @@ const initialGameState: GameState = {
     login: { ...defaultLevelState },
     timer: { ...defaultLevelState },
     checkmate: { ...defaultLevelState },
+    lights: { ...defaultLevelState },
     race: { ...defaultLevelState },
     cursed: { ...defaultLevelState },
     bedroom: { ...defaultLevelState },
     'blue-dot': { ...defaultLevelState },
     labyrinth: { ...defaultLevelState },
+    rubik: { ...defaultLevelState },
   },
   totalAttempts: 0,
   allCompleted: false,
@@ -95,7 +97,7 @@ function saveState(state: GameState) {
 // Sync local state from API player data
 function applyServerData(prev: GameState, data: { levels: Record<string, { completed: boolean; attempts: number; completedAt: number | null }>; total_attempts: number; started_at: number | null; completed_at: number | null; levels_completed: number }): GameState {
   const levels = { ...prev.levels } as Record<LevelName, LevelState>;
-  for (const key of ['chess', 'button', 'cursor', 'login', 'timer', 'checkmate', 'race', 'cursed', 'bedroom', 'blue-dot', 'labyrinth'] as LevelName[]) {
+  for (const key of ['chess', 'button', 'cursor', 'login', 'timer', 'checkmate', 'lights', 'race', 'cursed', 'bedroom', 'blue-dot', 'labyrinth', 'rubik'] as LevelName[]) {
     if (data.levels[key]) {
       levels[key] = {
         completed: data.levels[key].completed,
@@ -230,11 +232,13 @@ export function GameProvider({ children }: { children: ReactNode }) {
         login: { ...defaultLevelState },
         timer: { ...defaultLevelState },
         checkmate: { ...defaultLevelState },
+        lights: { ...defaultLevelState },
         race: { ...defaultLevelState },
         cursed: { ...defaultLevelState },
         bedroom: { ...defaultLevelState },
         'blue-dot': { ...defaultLevelState },
         labyrinth: { ...defaultLevelState },
+        rubik: { ...defaultLevelState },
       },
       profile,
       startedAt: null,

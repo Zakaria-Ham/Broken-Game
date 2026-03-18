@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
       );
 
       // Initialize level_progress rows
-      const levels = ['chess', 'button', 'cursor', 'login', 'timer', 'checkmate', 'race', 'cursed', 'bedroom', 'blue-dot', 'labyrinth'];
+      const levels = ['chess', 'button', 'cursor', 'login', 'timer', 'checkmate', 'lights', 'race', 'cursed', 'bedroom', 'blue-dot', 'labyrinth', 'rubik'];
       for (const level of levels) {
         await db.query(
           'INSERT INTO level_progress (player_id, level_name) VALUES ($1, $2) ON CONFLICT DO NOTHING',

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import db, { isDatabaseConfigurationError } from '@/lib/db';
 
-const VALID_LEVELS = ['chess', 'button', 'cursor', 'login', 'timer', 'checkmate', 'race', 'cursed', 'bedroom', 'blue-dot', 'labyrinth'];
+const VALID_LEVELS = ['chess', 'button', 'cursor', 'login', 'timer', 'checkmate', 'lights', 'race', 'cursed', 'bedroom', 'blue-dot', 'labyrinth', 'rubik'];
 
 async function getPlayerData(username: string) {
   const playerRes = await db.query(
