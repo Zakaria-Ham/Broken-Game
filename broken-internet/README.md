@@ -1,36 +1,185 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Broken Internet
 
-## Getting Started
+Broken Internet is a browser puzzle game built with Next.js and PostgreSQL.
 
-First, run the development server:
+This README explains everything you need to run the project after cloning from GitHub, including database setup.
+
+## Stack
+
+- Next.js 16 (App Router)
+- React 19
+- PostgreSQL
+- TypeScript
+
+## Prerequisites
+
+Install these first:
+
+- Node.js 20+ (Node 22 LTS recommended)
+- npm 10+
+- PostgreSQL 14+ (local or remote)
+- Git
+
+Check versions:
+
+```bash
+node -v
+npm -v
+psql --version
+```
+
+## 1. Clone the repository
+
+```bash
+git clone <your-repo-url>
+cd broken-internet
+```
+
+## 2. Install dependencies
+
+```bash
+npm install
+```
+
+## 3. Create PostgreSQL database
+
+Create a database named `broken_internet`.
+
+### Option A: psql command line
+
+```bash
+createdb -U postgres broken_internet
+```
+
+If `createdb` is not available:
+
+```bash
+psql -U postgres -c "CREATE DATABASE broken_internet;"
+```
+
+### Option B: pgAdmin
+
+Create a new database:
+
+- Name: `broken_internet`
+- Owner: your PostgreSQL user (often `postgres`)
+
+## 4. Create environment file
+
+Create `.env.local` in the project root and add:
+
+```env
+DATABASE_URL=postgresql://postgres:YOUR_PASSWORD@localhost:5432/broken_internet
+```
+
+Notes:
+
+- Replace `postgres` and `YOUR_PASSWORD` with your real PostgreSQL username/password.
+- If PostgreSQL is not on localhost or uses another port, update host/port.
+- Keep `.env.local` private; do not commit it.
+
+## 5. Initialize schema
+
+Run the SQL schema file:
+
+```bash
+psql -U postgres -d broken_internet -f schema.sql
+```
+
+This creates:
+
+- `players` table
+- `level_progress` table
+- related indexes
+
+Important:
+
+- The app also has auto-initialization on first DB query, but running `schema.sql` manually is recommended for first-time setup.
+
+## 6. Start the app
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- http://localhost:3000
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 7. Verify API and DB connection
 
-## Learn More
+Quick check in browser:
 
-To learn more about Next.js, take a look at the following resources:
+- http://localhost:3000/api/scoreboard
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Expected result when connected:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```json
+{
+	"scoreboard": []
+}
+```
 
-## Deploy on Vercel
+If database is not configured, API returns a `503` error.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Available scripts
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+npm run dev    # start development server
+npm run build  # create production build
+npm run start  # run production server
+npm run lint   # run ESLint
+```
+
+## Project structure (important parts)
+
+- `app/api/auth/route.ts` - login/register API
+- `app/api/progress/route.ts` - progress tracking API
+- `app/api/scoreboard/route.ts` - leaderboard API
+- `lib/db.ts` - PostgreSQL connection + initialization
+- `schema.sql` - manual DB schema bootstrap
+
+## Troubleshooting
+
+### Error: Database is not configured
+
+Cause:
+
+- `DATABASE_URL` missing or invalid.
+
+Fix:
+
+1. Confirm `.env.local` exists in project root.
+2. Confirm `DATABASE_URL` is correct.
+3. Restart dev server after changing env vars.
+
+### Error: client password must be a string
+
+Cause:
+
+- Connection string is malformed or password is missing.
+
+Fix:
+
+1. Re-check `DATABASE_URL` format.
+2. Ensure password section is present.
+
+### Error connecting with psql on Windows
+
+Try explicit host and port:
+
+```bash
+psql -h localhost -p 5432 -U postgres -d broken_internet -f schema.sql
+```
+
+If prompted for password, enter your PostgreSQL password.
+
+## Production notes
+
+- Set `DATABASE_URL` in your hosting environment.
+- Run `npm run build` before `npm run start`.
+- Ensure PostgreSQL network access/firewall rules allow your app host.
+
+## License
+
+Add your preferred license here (MIT, Apache-2.0, etc.).
