@@ -16,6 +16,8 @@ export default function ProfilePage() {
   const [avatarLastClickAt, setAvatarLastClickAt] = useState(0);
   const [showHiddenKey, setShowHiddenKey] = useState(false);
   const [blackDoorAlreadyOpened, setBlackDoorAlreadyOpened] = useState(false);
+  const [tagPickerOpen, setTagPickerOpen] = useState(false);
+  const [keyHintStep, setKeyHintStep] = useState(0);
 
   const profile = gameState.profile;
   const unlockedTags = profile?.unlockedTags ?? [];
@@ -76,6 +78,21 @@ export default function ProfilePage() {
     profile && gameState.levels.lights.completed && !blackDoorAlreadyOpened
   );
 
+  const keyHints = [
+    'Hint 1/4: The room changed after the lights were fixed. Check your profile avatar carefully.',
+    'Hint 2/4: The secret reacts to repeated interactions, not a single click.',
+    'Hint 3/4: Keep your clicks close together in time. Speed matters.',
+    'Hint 4/4: The hidden key is inside your profile avatar circle.',
+  ];
+
+  useEffect(() => {
+    if (!canRevealDoorKey || showHiddenKey) return;
+    const id = setInterval(() => {
+      setKeyHintStep(prev => Math.min(prev + 1, keyHints.length - 1));
+    }, 60000);
+    return () => clearInterval(id);
+  }, [canRevealDoorKey, keyHints.length, showHiddenKey]);
+
   const onAvatarClick = () => {
     if (!canRevealDoorKey || showHiddenKey) return;
 
@@ -96,6 +113,15 @@ export default function ProfilePage() {
     if (!profile) return;
     localStorage.setItem(`broken-internet:black-door-opening-pending:${profile.username}`, '1');
     router.push('/hub');
+  };
+
+  const onActiveTagClick = () => {
+    setTagPickerOpen(prev => !prev);
+  };
+
+  const onTagSelect = (tag: string | null) => {
+    void setActiveTag(tag);
+    setTagPickerOpen(false);
   };
 
   return (
@@ -267,11 +293,15 @@ export default function ProfilePage() {
             {profile.username}
           </h2>
 
-          {activeTag && (
-            <div style={{
+          {unlockedTags.length > 0 && (
+            <button
+              onClick={onActiveTagClick}
+              style={{
               marginTop: '-8px',
               marginBottom: '8px',
-              display: 'inline-block',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
               padding: '6px 10px',
               border: '1px solid #ffd166',
               borderRadius: '999px',
@@ -279,9 +309,12 @@ export default function ProfilePage() {
               fontSize: '8px',
               color: '#ffd166',
               background: 'rgba(255, 209, 102, 0.1)',
-            }}>
-              active: {activeTag}
-            </div>
+              cursor: 'pointer',
+            }}
+            >
+              <span>active: {activeTag ?? 'none'}</span>
+              <span style={{ fontSize: '7px', opacity: 0.8 }}>{tagPickerOpen ? '▲' : '▼'}</span>
+            </button>
           )}
 
           {unlockedTags.length > 0 && (
@@ -295,29 +328,54 @@ export default function ProfilePage() {
               }}>
                 UNLOCKED TAGS
               </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center' }}>
-                {unlockedTags.map(tag => {
-                  const selected = activeTag === tag;
-                  return (
-                    <button
-                      key={tag}
-                      onClick={() => { void setActiveTag(selected ? null : tag); }}
-                      style={{
-                        padding: '5px 9px',
-                        borderRadius: '999px',
-                        border: selected ? '1px solid #ffd166' : '1px solid #3b3b3b',
-                        background: selected ? 'rgba(255, 209, 102, 0.12)' : 'rgba(255,255,255,0.03)',
-                        color: selected ? '#ffd166' : 'var(--text-secondary)',
-                        fontFamily: 'var(--font-pixel)',
-                        fontSize: '7px',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      {tag}
-                    </button>
-                  );
-                })}
+              <div style={{
+                overflow: 'hidden',
+                maxHeight: tagPickerOpen ? '200px' : '0px',
+                opacity: tagPickerOpen ? 1 : 0,
+                transform: tagPickerOpen ? 'translateY(0)' : 'translateY(-8px)',
+                transition: 'max-height 0.35s ease, opacity 0.25s ease, transform 0.25s ease',
+              }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center', paddingTop: '6px' }}>
+                  {unlockedTags.map(tag => {
+                    const selected = activeTag === tag;
+                    return (
+                      <button
+                        key={tag}
+                        onClick={() => onTagSelect(selected ? null : tag)}
+                        style={{
+                          padding: '5px 9px',
+                          borderRadius: '999px',
+                          border: selected ? '1px solid #ffd166' : '1px solid #3b3b3b',
+                          background: selected ? 'rgba(255, 209, 102, 0.12)' : 'rgba(255,255,255,0.03)',
+                          color: selected ? '#ffd166' : 'var(--text-secondary)',
+                          fontFamily: 'var(--font-pixel)',
+                          fontSize: '7px',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {tag}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
+            </div>
+          )}
+
+          {canRevealDoorKey && !showHiddenKey && (
+            <div style={{
+              marginBottom: '16px',
+              padding: '10px 12px',
+              border: '1px solid #5b4b2b',
+              borderRadius: '6px',
+              background: 'rgba(255, 209, 102, 0.08)',
+              fontFamily: 'var(--font-terminal)',
+              fontSize: '13px',
+              color: '#e9c987',
+              textAlign: 'left',
+              lineHeight: 1.5,
+            }}>
+              {keyHints[Math.min(keyHintStep, keyHints.length - 1)]}
             </div>
           )}
 

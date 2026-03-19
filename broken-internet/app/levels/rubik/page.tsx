@@ -160,7 +160,7 @@ function remixUnlockedOnly(board: string[][], lockedFaces: boolean[]): string[][
 
 export default function RubikLevel() {
   const router = useRouter();
-  const { completeLevel, addAttempt, adjustSpeedrunTime, unlockTag } = useGame();
+  const { completeLevel, addAttempt, adjustSpeedrunTime, unlockTag, gameState } = useGame();
 
   const [board, setBoard] = useState<string[][]>(createSolvedBoard);
   const [lockedFaces, setLockedFaces] = useState<boolean[]>(Array.from({ length: 9 }, () => false));
@@ -413,6 +413,9 @@ export default function RubikLevel() {
   };
 
   if (won) {
+    const missedTagNote = gameState.profile?.unlockedTags.includes('ff')
+      ? ''
+      : ' This level has a hidden tag and you missed it: ff. Hint: click the hidden override button once.';
     return (
       <LevelLayout levelName="rubik" title="RUBIK GLITCH">
         <div
@@ -426,7 +429,7 @@ export default function RubikLevel() {
         >
           <MessageBox
             type="success"
-            message="You stabilized all nine faces and locked every center. Cube patched."
+            message={`You stabilized all nine faces and locked every center. Cube patched.${missedTagNote}`}
             onClose={() => router.push('/hub')}
           />
         </div>

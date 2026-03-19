@@ -97,7 +97,7 @@ const MOUNTAINS = Array.from({ length: 20 }, (_, i) => ({
    ═══════════════════════════════════════════════ */
 export default function RaceLevel() {
   const router = useRouter();
-  const { completeLevel, addAttempt, unlockTag } = useGame();
+  const { completeLevel, addAttempt, unlockTag, gameState } = useGame();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [solved, setSolved] = useState(false);
   const [deaths, setDeaths] = useState(0);
@@ -105,6 +105,9 @@ export default function RaceLevel() {
   const [inTunnel, setInTunnel] = useState(false);
   const [phase, setPhase] = useState<'countdown' | 'racing' | 'tunnel' | 'won'>('countdown');
   const secondSpikeStreak = useRef(0);
+  const missedTagNote = gameState.profile?.unlockedTags.includes('murdered') || secondSpikeStreak.current >= 10
+    ? ''
+    : ' This level has a hidden tag and you missed it: murdered. Hint: die 10 times in a row on the second spike section.';
 
   const gameRef = useRef({
     carX: START_X,
@@ -1469,7 +1472,7 @@ export default function RaceLevel() {
         {/* Victory */}
         {solved && (
           <MessageBox
-            message="SECRET PATH FOUND. The race was never meant to be won by going forward. While every ghost racer rushed right to their doom, you questioned the rules themselves. Level complete."
+            message={`SECRET PATH FOUND. The race was never meant to be won by going forward. While every ghost racer rushed right to their doom, you questioned the rules themselves. Level complete.${missedTagNote}`}
             type="success"
             onClose={() => router.push('/hub')}
           />

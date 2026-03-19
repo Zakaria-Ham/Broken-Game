@@ -247,7 +247,7 @@ function drawHpBar(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
    ═══════════════════════════════════════════════ */
 export default function CursedDomainLevel() {
   const router = useRouter();
-  const { completeLevel, addAttempt, unlockTag } = useGame();
+  const { completeLevel, addAttempt, unlockTag, gameState } = useGame();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [showVictory, setShowVictory] = useState(false);
   const [showGameOver, setShowGameOver] = useState(false);
@@ -1329,6 +1329,9 @@ export default function CursedDomainLevel() {
 
   const handleVictory = useCallback(() => { completeLevel('cursed'); router.push('/hub'); }, [completeLevel, router]);
   const handleRetry = useCallback(() => { restartRef.current?.(); }, []);
+  const missedTagNote = gameState.profile?.unlockedTags.includes('cursed') || smallDeathCountRef.current >= 5
+    ? ''
+    : ' This level has a hidden tag and you missed it: cursed. Hint: get defeated by small enemies 5 times.';
 
   return (
     <LevelLayout levelName="cursed" title="CURSED DOMAIN">
@@ -1371,7 +1374,7 @@ export default function CursedDomainLevel() {
           imageRendering: 'pixelated', maxWidth: '100%',
         }} tabIndex={0} />
 
-        {showVictory && <MessageBox message="Cursed Seal Obtained — You have purified the domain." type="success" onClose={handleVictory} />}
+        {showVictory && <MessageBox message={`Cursed Seal Obtained — You have purified the domain.${missedTagNote}`} type="success" onClose={handleVictory} />}
         {showGameOver && <MessageBox message="You were consumed by the curse. Try again?" type="error" onClose={handleRetry} />}
       </div>
     </LevelLayout>

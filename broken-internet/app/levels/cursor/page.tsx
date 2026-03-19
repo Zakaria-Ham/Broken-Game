@@ -8,7 +8,7 @@ import { useGame } from '../../context/GameContext';
 
 export default function CursorLevel() {
   const router = useRouter();
-  const { completeLevel, addAttempt, unlockTag } = useGame();
+  const { completeLevel, addAttempt, unlockTag, gameState } = useGame();
   const [solved, setSolved] = useState(false);
   const [squarePos, setSquarePos] = useState({ x: 400, y: 300 });
   const [msg, setMsg] = useState('');
@@ -17,6 +17,7 @@ export default function CursorLevel() {
   const containerRef = useRef<HTMLDivElement>(null);
   const wentFastRef = useRef(false);
   const squareHoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hoverTagUnlockedRef = useRef(false);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (solved) return;
@@ -74,6 +75,7 @@ export default function CursorLevel() {
     if (!wentFastRef.current || solved || squareHoverTimer.current) return;
     squareHoverTimer.current = setTimeout(() => {
       squareHoverTimer.current = null;
+      hoverTagUnlockedRef.current = true;
       void unlockTag('hover');
     }, 10000);
   };
@@ -94,6 +96,10 @@ export default function CursorLevel() {
       }
     };
   }, []);
+
+  const missedTagNote = gameState.profile?.unlockedTags.includes('hover') || hoverTagUnlockedRef.current
+    ? ''
+    : ' This level has a hidden tag and you missed it: hover. Hint: make the square run once, then hover it for 10 seconds.';
 
   return (
     <LevelLayout levelName="cursor" title="CURSOR.TRAP">
@@ -181,7 +187,7 @@ export default function CursorLevel() {
 
         {solved && (
           <MessageBox
-            message="The square trusted you. Slow and steady wins. Level complete."
+            message={`The square trusted you. Slow and steady wins. Level complete.${missedTagNote}`}
             type="success"
             onClose={() => router.push('/hub')}
           />

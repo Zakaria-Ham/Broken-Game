@@ -63,7 +63,7 @@ const WRONG_TAUNTS = [
 
 export default function CheckmateLevel() {
   const router = useRouter();
-  const { completeLevel, addAttempt, unlockTag } = useGame();
+  const { completeLevel, addAttempt, unlockTag, gameState } = useGame();
 
   const [phase, setPhase] = useState<Phase>('stuck');
   const [rotation, setRotation] = useState(0);
@@ -174,6 +174,10 @@ export default function CheckmateLevel() {
       : hintLevel >= 1
       ? 'There has to be another way...'
       : '';
+
+  const missedTagNote = gameState.profile?.unlockedTags.includes('murder') || kingClickStreakRef.current >= 5
+    ? ''
+    : ' This level has a hidden tag and you missed it: murder. Hint: click any king 5 times in a row.';
 
   return (
     <LevelLayout levelName="checkmate" title="CHECKMATE.BUG">
@@ -329,7 +333,7 @@ export default function CheckmateLevel() {
         {/* Victory */}
         {phase === 'won' && (
           <MessageBox
-            message="Rd8#! Back rank mate! You turned the tables! 🏆"
+            message={`Rd8#! Back rank mate! You turned the tables!${missedTagNote}`}
             type="success"
             onClose={() => router.push('/hub')}
           />

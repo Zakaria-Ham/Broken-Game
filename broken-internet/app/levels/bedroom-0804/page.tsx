@@ -230,6 +230,9 @@ export default function BedroomLevel() {
   const winMessage = interactedWithLongPath
     ? 'Congrats! You could be faster but your curiousness added 3 min to your speedrun timer.'
     : 'GGs, you\'re pretty fast. Sometimes the fastest way is the simplest. -2 min from your speedrun timer!';
+  const bedroomWinMessage = gameState.profile?.unlockedTags.includes('conan')
+    ? winMessage
+    : `${winMessage} This level has a hidden tag and you missed it: conan. Hint: on your 2nd entry, find the carpet interface before clicking the window.`;
 
   // ===================== RENDER =====================
 
@@ -1120,7 +1123,7 @@ export default function BedroomLevel() {
           justifyContent: 'center', minHeight: 'calc(100vh - 50px)', padding: '20px',
         }}>
           <MessageBox
-            message={winMessage}
+            message={bedroomWinMessage}
             type="success"
             onClose={() => router.push('/hub')}
           />

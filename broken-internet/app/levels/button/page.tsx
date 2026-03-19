@@ -10,7 +10,7 @@ const REQUIRED_HOVER_SECONDS = 15;
 
 export default function ButtonLevel() {
   const router = useRouter();
-  const { completeLevel, addAttempt, unlockTag } = useGame();
+  const { completeLevel, addAttempt, unlockTag, gameState } = useGame();
   const [solved, setSolved] = useState(false);
   const [clicked, setClicked] = useState(false);
   const [msg, setMsg] = useState('');
@@ -49,6 +49,10 @@ export default function ButtonLevel() {
       hoverTimer.current = null;
     }
   }, []);
+
+  const missedTagNote = gameState.profile?.unlockedTags.includes('Clicker')
+    ? ''
+    : ' This level has a hidden tag and you missed it: Clicker. Hint: click the button 75 times before finishing.';
 
   return (
     <LevelLayout levelName="button" title="BUTTON.EXE">
@@ -126,7 +130,7 @@ export default function ButtonLevel() {
 
         {solved && (
           <MessageBox
-            message="You hovered long enough. Patience defeats all buttons."
+            message={`You hovered long enough. Patience defeats all buttons.${missedTagNote}`}
             type="success"
             onClose={() => router.push('/hub')}
           />

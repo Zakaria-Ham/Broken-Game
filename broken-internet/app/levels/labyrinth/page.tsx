@@ -92,7 +92,7 @@ function toToken(key: string): Token | null {
 
 export default function LabyrinthLevel() {
   const router = useRouter();
-  const { completeLevel, addAttempt, unlockTag } = useGame();
+  const { completeLevel, addAttempt, unlockTag, gameState } = useGame();
   const hintCommentRef = useRef<Comment | null>(null);
   const startedAtRef = useRef<number>(0);
 
@@ -214,6 +214,9 @@ export default function LabyrinthLevel() {
   }, [completeLevel, lastCorrectAt, playerPos, resetSequence, sequenceIndex, unlockTag, won]);
 
   if (won) {
+    const missedTagNote = gameState.profile?.unlockedTags.includes('Icon') || Date.now() - startedAtRef.current <= 45000
+      ? ''
+      : ' This level has a hidden tag and you missed it: Icon. Hint: finish the combo in under 45 seconds.';
     return (
       <LevelLayout levelName="labyrinth" title="INVISIBLE LABYRINTH">
         <div
@@ -226,7 +229,7 @@ export default function LabyrinthLevel() {
           }}
         >
           <MessageBox
-            message="You decoded the invisible labyrinth. Portal stabilized."
+            message={`You decoded the invisible labyrinth. Portal stabilized.${missedTagNote}`}
             type="success"
             onClose={() => router.push('/hub')}
           />
