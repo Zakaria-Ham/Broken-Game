@@ -110,7 +110,7 @@ export default function ScoreboardPage() {
                 }}>
                   {entry.username}
                   {isMe && <span style={{ fontSize: '7px', color: 'var(--accent-purple)', marginLeft: '6px' }}>(you)</span>}
-                  {entry.electricianTag && (
+                  {entry.activeTag && (
                     <span style={{
                       fontSize: '7px',
                       color: '#ffd166',
@@ -119,7 +119,7 @@ export default function ScoreboardPage() {
                       borderRadius: '999px',
                       padding: '1px 4px',
                     }}>
-                      electricien
+                      {entry.activeTag}
                     </span>
                   )}
                 </span>

@@ -135,14 +135,37 @@ function pickRandomSubset(faces: number[], count: number): number[] {
   return shuffled(faces).slice(0, Math.min(count, faces.length));
 }
 
+function remixUnlockedOnly(board: string[][], lockedFaces: boolean[]): string[][] {
+  const next = board.map(face => [...face]);
+  const unlockedSlots: Pick[] = [];
+  const colors: string[] = [];
+
+  for (let face = 0; face < 9; face += 1) {
+    if (lockedFaces[face]) continue;
+    for (let index = 0; index < 9; index += 1) {
+      if (index === CENTER_INDEX) continue;
+      unlockedSlots.push({ face, index });
+      colors.push(next[face][index]);
+    }
+  }
+
+  const mixed = shuffled(colors);
+  for (let i = 0; i < unlockedSlots.length; i += 1) {
+    const slot = unlockedSlots[i];
+    next[slot.face][slot.index] = mixed[i];
+  }
+
+  return next;
+}
+
 export default function RubikLevel() {
   const router = useRouter();
-  const { completeLevel, addAttempt, adjustSpeedrunTime } = useGame();
+  const { completeLevel, addAttempt, adjustSpeedrunTime, unlockTag } = useGame();
 
   const [board, setBoard] = useState<string[][]>(createSolvedBoard);
   const [lockedFaces, setLockedFaces] = useState<boolean[]>(Array.from({ length: 9 }, () => false));
-  const [selectedTiles, setSelectedTiles] = useState<Pick[]>([]);
-  const [message, setMessage] = useState('Right-click tiles to multi-select. Left-click a center to fill that face.');
+  const [selectedTile, setSelectedTile] = useState<Pick | null>(null);
+  const [message, setMessage] = useState('Left-click two tiles to swap. Right-click a tile for auto color-face swap.');
   const [trapTriggered, setTrapTriggered] = useState(false);
   const [chaosAttempts, setChaosAttempts] = useState(0);
   const [chaosTileCount, setChaosTileCount] = useState(4);
@@ -210,11 +233,14 @@ export default function RubikLevel() {
     const preserveCount = Math.floor(previousLocked.length * preserveRatio);
     const preservedFaces = pickRandomSubset(previousLocked, preserveCount);
 
-    const freshBoard = remixBoard();
     const nextLocked = Array.from({ length: 9 }, () => false);
-
     for (const face of preservedFaces) {
       nextLocked[face] = true;
+    }
+
+    const freshBoard = remixUnlockedOnly(board, nextLocked);
+
+    for (const face of preservedFaces) {
       for (let i = 0; i < 9; i += 1) {
         freshBoard[face][i] = FACE_COLORS[face];
       }
@@ -222,7 +248,7 @@ export default function RubikLevel() {
 
     setBoard(freshBoard);
     setLockedFaces(nextLocked);
-    setSelectedTiles([]);
+    setSelectedTile(null);
     setTrapTriggered(false);
     setHardLost(false);
     setChaosAttempts(0);
@@ -240,42 +266,6 @@ export default function RubikLevel() {
 
   const handleCenterClick = (face: number) => {
     if (won || hardLost) return;
-
-    if (selectedTiles.length > 0) {
-      if (lockedFaces[face]) {
-        setMessage(`Face ${FACE_NAMES[face]} is locked and cannot receive moved tiles.`);
-        return;
-      }
-
-      const targets = Array.from({ length: 9 }, (_, i) => i)
-        .filter(i => i !== CENTER_INDEX)
-        .map(index => ({ face, index }))
-        .filter(slot => !selectedTiles.some(sel => sel.face === slot.face && sel.index === slot.index));
-
-      if (targets.length === 0) {
-        setSelectedTiles([]);
-        setMessage('No available tiles on this face for batch move.');
-        return;
-      }
-
-      const moveCount = Math.min(selectedTiles.length, targets.length);
-      let moved = board.map(faceTiles => [...faceTiles]);
-
-      for (let i = 0; i < moveCount; i += 1) {
-        const src = selectedTiles[i];
-        const dst = targets[i];
-        const temp = moved[src.face][src.index];
-        moved[src.face][src.index] = moved[dst.face][dst.index];
-        moved[dst.face][dst.index] = temp;
-      }
-
-      const beforeMismatch = countMismatches(board);
-      const afterMismatch = countMismatches(moved);
-      setSelectedTiles([]);
-      applySwapResult(moved, beforeMismatch, afterMismatch);
-      setMessage(`Moved ${moveCount} selected tile(s) into face ${FACE_NAMES[face]}.`);
-      return;
-    }
 
     if (lockedFaces[face]) {
       setMessage(`Face ${FACE_NAMES[face]} is already locked.`);
@@ -299,7 +289,9 @@ export default function RubikLevel() {
         locked[face] = true;
         return locked;
       });
-      setSelectedTiles(current => current.filter(sel => sel.face !== face));
+      if (selectedTile?.face === face) {
+        setSelectedTile(null);
+      }
       centerClicksRef.current[face] = { count: 0, lastAt: 0 };
       setMessage(`Face ${FACE_NAMES[face]} locked. Keep going.`);
     } else {
@@ -307,29 +299,49 @@ export default function RubikLevel() {
     }
   };
 
-  const toggleSelectedTile = (face: number, index: number) => {
+  const handleRightClickSwap = (face: number, index: number) => {
     if (won || hardLost) return;
+
     if (lockedFaces[face]) {
-      setMessage(`Face ${FACE_NAMES[face]} is locked and cannot be selected.`);
+      setMessage(`Face ${FACE_NAMES[face]} is locked and cannot be changed.`);
       return;
     }
+
     if (index === CENTER_INDEX) {
-      setMessage('Use left-click on a center tile to fill that face from selected tiles.');
+      setMessage('Center tile cannot be used for right-click swap.');
       return;
     }
 
-    setSelectedTiles(prev => {
-      const exists = prev.some(sel => sel.face === face && sel.index === index);
-      if (exists) {
-        const filtered = prev.filter(sel => !(sel.face === face && sel.index === index));
-        setMessage(filtered.length > 0 ? `${filtered.length} tile(s) selected.` : 'Selection cleared.');
-        return filtered;
-      }
+    const sourceColor = board[face][index];
+    const targetFace = FACE_COLORS.indexOf(sourceColor);
+    if (targetFace < 0) {
+      setMessage('No matching face found for this tile color.');
+      return;
+    }
 
-      const next = [...prev, { face, index }];
-      setMessage(`${next.length} tile(s) selected. Left-click a center tile to batch-move.`);
-      return next;
-    });
+    if (lockedFaces[targetFace] && targetFace !== face) {
+      setMessage(`Target face ${FACE_NAMES[targetFace]} is locked.`);
+      return;
+    }
+
+    const candidates = Array.from({ length: 9 }, (_, i) => i)
+      .filter(i => i !== CENTER_INDEX)
+      .filter(i => !(targetFace === face && i === index))
+      .filter(i => board[targetFace][i] !== sourceColor);
+
+    if (candidates.length === 0) {
+      setMessage(`No different-color square available in face ${FACE_NAMES[targetFace]}.`);
+      return;
+    }
+
+    const pick = candidates[Math.floor(Math.random() * candidates.length)];
+    const swapped = swapTiles(board, { face, index }, { face: targetFace, index: pick });
+    const beforeMismatch = countMismatches(board);
+    const afterMismatch = countMismatches(swapped);
+
+    setSelectedTile(null);
+    applySwapResult(swapped, beforeMismatch, afterMismatch);
+    setMessage(`Right-swap: tile moved toward face ${FACE_NAMES[targetFace]}.`);
   };
 
   const handleTileClick = (face: number, index: number) => {
@@ -340,7 +352,7 @@ export default function RubikLevel() {
     }
 
     if (trapTriggered) {
-      if (!selectedTiles.length && index !== CENTER_INDEX) {
+      if (!selectedTile && index !== CENTER_INDEX) {
         setMessage('Cube instability detected. RETRY is recommended before more swaps.');
       }
     }
@@ -355,25 +367,20 @@ export default function RubikLevel() {
       return;
     }
 
-    if (!selectedTiles.length) {
-      setSelectedTiles([{ face, index }]);
+    if (!selectedTile) {
+      setSelectedTile({ face, index });
       setMessage(`Selected tile on face ${FACE_NAMES[face]}. Pick another tile to swap.`);
       return;
     }
 
-    if (selectedTiles.length === 1 && selectedTiles[0].face === face && selectedTiles[0].index === index) {
-      setSelectedTiles([]);
+    if (selectedTile.face === face && selectedTile.index === index) {
+      setSelectedTile(null);
       setMessage('Selection canceled.');
       return;
     }
 
-    if (selectedTiles.length > 1) {
-      setMessage('You have a multi-selection. Left-click a center tile to batch-move.');
-      return;
-    }
-
-    const first = selectedTiles[0];
-    setSelectedTiles([]);
+    const first = selectedTile;
+    setSelectedTile(null);
 
     if (lockedFaces[first.face]) {
       setMessage(`Face ${FACE_NAMES[first.face]} is locked and cannot be changed.`);
@@ -538,7 +545,7 @@ export default function RubikLevel() {
                 >
                   {faceTiles.map((color, index) => {
                     const isCenter = index === CENTER_INDEX;
-                    const isSelected = selectedTiles.some(sel => sel.face === face && sel.index === index);
+                    const isSelected = selectedTile?.face === face && selectedTile.index === index;
                     const isFixed = isCenter || lockedFaces[face];
 
                     return (
@@ -547,7 +554,7 @@ export default function RubikLevel() {
                         onClick={() => handleTileClick(face, index)}
                         onContextMenu={(event) => {
                           event.preventDefault();
-                          toggleSelectedTile(face, index);
+                          handleRightClickSwap(face, index);
                         }}
                         style={{
                           width: '100%',
@@ -590,7 +597,10 @@ export default function RubikLevel() {
             <div style={{ marginTop: '650px', paddingTop: '40px' }}>
               {!showHelpConfirm && (
                 <button
-                  onClick={() => setShowHelpConfirm(true)}
+                  onClick={() => {
+                    void unlockTag('ff');
+                    setShowHelpConfirm(true);
+                  }}
                   style={{
                     fontFamily: 'var(--font-pixel)',
                     fontSize: '8px',

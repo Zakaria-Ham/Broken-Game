@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import LevelLayout from '../../components/LevelLayout';
 import MessageBox from '../../components/MessageBox';
@@ -63,7 +63,7 @@ const WRONG_TAUNTS = [
 
 export default function CheckmateLevel() {
   const router = useRouter();
-  const { completeLevel, addAttempt } = useGame();
+  const { completeLevel, addAttempt, unlockTag } = useGame();
 
   const [phase, setPhase] = useState<Phase>('stuck');
   const [rotation, setRotation] = useState(0);
@@ -71,6 +71,7 @@ export default function CheckmateLevel() {
   const [message, setMessage] = useState('');
   const [stuckClicks, setStuckClicks] = useState(0);
   const [hintLevel, setHintLevel] = useState(0);
+  const kingClickStreakRef = useRef(0);
 
   // Progressive hints when stuck
   useEffect(() => {
@@ -101,6 +102,16 @@ export default function CheckmateLevel() {
   // Square clicks
   const handleSquareClick = (row: number, col: number) => {
     if (phase === 'won') return;
+
+    const clickedPiece = BOARD[row][col];
+    if (clickedPiece.toLowerCase() === 'k') {
+      kingClickStreakRef.current += 1;
+      if (kingClickStreakRef.current >= 5) {
+        void unlockTag('murder');
+      }
+    } else {
+      kingClickStreakRef.current = 0;
+    }
 
     // Phase: stuck as Black — every click is useless
     if (phase === 'stuck') {

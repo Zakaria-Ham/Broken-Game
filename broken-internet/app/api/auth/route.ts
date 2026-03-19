@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
       }
 
       const result = await db.query(
-        'INSERT INTO players (username, password_hash) VALUES ($1, $2) RETURNING id, username, created_at, electrician_tag',
+        'INSERT INTO players (username, password_hash) VALUES ($1, $2) RETURNING id, username, created_at, electrician_tag, unlocked_tags, active_tag',
         [clean, hashed]
       );
 
@@ -52,12 +52,14 @@ export async function POST(request: NextRequest) {
           username: result.rows[0].username,
           createdAt: result.rows[0].created_at,
           electricianTag: Boolean(result.rows[0].electrician_tag),
+          unlockedTags: Array.isArray(result.rows[0].unlocked_tags) ? result.rows[0].unlocked_tags : [],
+          activeTag: result.rows[0].active_tag ?? null,
         },
       });
 
     } else if (action === 'login') {
       const result = await db.query(
-        'SELECT id, username, created_at, electrician_tag FROM players WHERE username = $1 AND password_hash = $2',
+        'SELECT id, username, created_at, electrician_tag, unlocked_tags, active_tag FROM players WHERE username = $1 AND password_hash = $2',
         [clean, hashed]
       );
 
@@ -71,6 +73,8 @@ export async function POST(request: NextRequest) {
           username: result.rows[0].username,
           createdAt: result.rows[0].created_at,
           electricianTag: Boolean(result.rows[0].electrician_tag),
+          unlockedTags: Array.isArray(result.rows[0].unlocked_tags) ? result.rows[0].unlocked_tags : [],
+          activeTag: result.rows[0].active_tag ?? null,
         },
       });
 

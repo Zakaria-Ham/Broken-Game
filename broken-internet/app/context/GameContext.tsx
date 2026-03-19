@@ -30,6 +30,8 @@ interface UserProfile {
   username: string;
   createdAt: number;
   electricianTag: boolean;
+  unlockedTags: string[];
+  activeTag: string | null;
 }
 
 interface GameState {
@@ -57,6 +59,9 @@ interface GameContextType {
   getElapsedTime: () => number;
   getAllProfiles: () => Promise<ProfileEntry[]>;
   setElectricianTag: () => Promise<void>;
+  unlockTag: (tag: string) => Promise<void>;
+  setActiveTag: (tag: string | null) => Promise<void>;
+  recordHubBackClick: () => void;
 }
 
 export interface ProfileEntry {
@@ -66,6 +71,8 @@ export interface ProfileEntry {
   totalAttempts: number;
   levelsCompleted: number;
   electricianTag: boolean;
+  unlockedTags: string[];
+  activeTag: string | null;
 }
 
 const defaultLevelState: LevelState = { completed: false, attempts: 0 };
@@ -104,7 +111,18 @@ function loadState(): GameState {
       const parsed = JSON.parse(saved) as GameState;
       // Backfill any newly added levels missing from old saved state
       const levels = { ...initialGameState.levels, ...parsed.levels };
-      return { ...parsed, levels };
+      const profile = parsed.profile
+        ? {
+            ...parsed.profile,
+            unlockedTags: Array.isArray((parsed.profile as UserProfile).unlockedTags)
+              ? (parsed.profile as UserProfile).unlockedTags
+              : [],
+            activeTag: typeof (parsed.profile as UserProfile).activeTag === 'string'
+              ? (parsed.profile as UserProfile).activeTag
+              : null,
+          }
+        : null;
+      return { ...parsed, levels, profile };
     }
   } catch {}
   return initialGameState;
@@ -116,7 +134,16 @@ function saveState(state: GameState) {
 }
 
 // Sync local state from API player data
-function applyServerData(prev: GameState, data: { levels: Record<string, { completed: boolean; attempts: number; completedAt: number | null }>; total_attempts: number; started_at: number | null; completed_at: number | null; levels_completed: number; electrician_tag?: boolean }): GameState {
+function normalizeTags(tags: unknown, electricianTag: boolean): string[] {
+  const raw = Array.isArray(tags) ? tags.filter((tag): tag is string => typeof tag === 'string') : [];
+  const unique = Array.from(new Set(raw));
+  if (electricianTag && !unique.includes('electricien')) {
+    unique.push('electricien');
+  }
+  return unique;
+}
+
+function applyServerData(prev: GameState, data: { levels: Record<string, { completed: boolean; attempts: number; completedAt: number | null }>; total_attempts: number; started_at: number | null; completed_at: number | null; levels_completed: number; electrician_tag?: boolean; unlocked_tags?: string[]; active_tag?: string | null }): GameState {
   const levels = { ...prev.levels } as Record<LevelName, LevelState>;
   for (const key of ['chess', 'button', 'cursor', 'login', 'timer', 'checkmate', 'lights', 'race', 'cursed', 'bedroom', 'blue-dot', 'labyrinth', 'rubik', 'blacknet'] as LevelName[]) {
     if (data.levels[key]) {
@@ -128,8 +155,18 @@ function applyServerData(prev: GameState, data: { levels: Record<string, { compl
     }
   }
   const allCompleted = Object.values(levels).every(l => l.completed);
+  const electricianTag = Boolean(data.electrician_tag);
+  const unlockedTags = normalizeTags(data.unlocked_tags, electricianTag);
+  const activeTag = data.active_tag && unlockedTags.includes(data.active_tag)
+    ? data.active_tag
+    : (unlockedTags[0] ?? null);
   const profile = prev.profile
-    ? { ...prev.profile, electricianTag: Boolean(data.electrician_tag) }
+    ? {
+        ...prev.profile,
+        electricianTag,
+        unlockedTags,
+        activeTag,
+      }
     : prev.profile;
   return {
     ...prev,
@@ -247,7 +284,14 @@ export function GameProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const resetGame = useCallback(() => {
-    const profile = gameState.profile;
+    const profile = gameState.profile
+      ? {
+          ...gameState.profile,
+          electricianTag: false,
+          unlockedTags: [],
+          activeTag: null,
+        }
+      : null;
     const newState: GameState = {
       ...initialGameState,
       levels: {
@@ -294,6 +338,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
         username: data.user.username,
         createdAt: new Date(data.user.createdAt).getTime(),
         electricianTag: Boolean(data.user.electricianTag),
+        unlockedTags: normalizeTags(data.user.unlockedTags, Boolean(data.user.electricianTag)),
+        activeTag: data.user.activeTag ?? null,
       };
       setGameState(prev => ({ ...prev, profile }));
       return true;
@@ -315,6 +361,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
         username: data.user.username,
         createdAt: new Date(data.user.createdAt).getTime(),
         electricianTag: Boolean(data.user.electricianTag),
+        unlockedTags: normalizeTags(data.user.unlockedTags, Boolean(data.user.electricianTag)),
+        activeTag: data.user.activeTag ?? null,
       };
 
       // Load progress from server
@@ -413,11 +461,16 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const setElectricianTag = useCallback(async (): Promise<void> => {
     setGameState(prev => {
       if (!prev.profile || prev.profile.electricianTag) return prev;
+      const nextTags = prev.profile.unlockedTags.includes('electricien')
+        ? prev.profile.unlockedTags
+        : [...prev.profile.unlockedTags, 'electricien'];
       return {
         ...prev,
         profile: {
           ...prev.profile,
           electricianTag: true,
+          unlockedTags: nextTags,
+          activeTag: prev.profile.activeTag ?? 'electricien',
         },
       };
     });
@@ -434,6 +487,73 @@ export function GameProvider({ children }: { children: ReactNode }) {
     } catch {}
   }, [gameState.profile?.username]);
 
+  const unlockTag = useCallback(async (tag: string): Promise<void> => {
+    const cleanTag = tag.trim();
+    if (!cleanTag) return;
+
+    setGameState(prev => {
+      if (!prev.profile || prev.profile.unlockedTags.includes(cleanTag)) return prev;
+      return {
+        ...prev,
+        profile: {
+          ...prev.profile,
+          unlockedTags: [...prev.profile.unlockedTags, cleanTag],
+          activeTag: prev.profile.activeTag ?? cleanTag,
+        },
+      };
+    });
+
+    const username = gameState.profile?.username;
+    if (!username) return;
+
+    try {
+      await fetch('/api/progress', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'unlock_tag', username, tag: cleanTag }),
+      });
+    } catch {}
+  }, [gameState.profile?.username]);
+
+  const setActiveTag = useCallback(async (tag: string | null): Promise<void> => {
+    setGameState(prev => {
+      if (!prev.profile) return prev;
+      if (tag && !prev.profile.unlockedTags.includes(tag)) return prev;
+      return {
+        ...prev,
+        profile: {
+          ...prev.profile,
+          activeTag: tag,
+        },
+      };
+    });
+
+    const username = gameState.profile?.username;
+    if (!username) return;
+
+    try {
+      await fetch('/api/progress', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'set_active_tag', username, tag }),
+      });
+    } catch {}
+  }, [gameState.profile?.username]);
+
+  const recordHubBackClick = useCallback(() => {
+    const username = gameState.profile?.username;
+    if (!username || typeof window === 'undefined') return;
+
+    const key = `broken-internet:hub-back-clicks:${username}`;
+    const raw = Number(localStorage.getItem(key) || '0');
+    const next = raw + 1;
+    localStorage.setItem(key, String(next));
+
+    if (next > 100) {
+      void unlockTag('hubber');
+    }
+  }, [gameState.profile?.username, unlockTag]);
+
   return (
     <GameContext.Provider
       value={{
@@ -441,6 +561,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         isLevelCompleted, getLevelAttempts, isLevelUnlocked,
         loginUser, registerUser, logoutUser,
         startTimer, getElapsedTime, getAllProfiles, setElectricianTag,
+        unlockTag, setActiveTag, recordHubBackClick,
       }}
     >
       {children}

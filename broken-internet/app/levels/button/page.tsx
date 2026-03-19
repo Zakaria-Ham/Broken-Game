@@ -10,16 +10,21 @@ const REQUIRED_HOVER_SECONDS = 15;
 
 export default function ButtonLevel() {
   const router = useRouter();
-  const { completeLevel, addAttempt } = useGame();
+  const { completeLevel, addAttempt, unlockTag } = useGame();
   const [solved, setSolved] = useState(false);
   const [clicked, setClicked] = useState(false);
   const [msg, setMsg] = useState('');
   const hoverTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const hoverStart = useRef<number>(0);
+  const clickCount = useRef(0);
 
   const handleClick = () => {
     if (solved) return;
     setClicked(true);
+    clickCount.current += 1;
+    if (clickCount.current >= 75) {
+      void unlockTag('Clicker');
+    }
     addAttempt('button');
     setMsg("Nothing. Clicking doesn't work.");
     setTimeout(() => setMsg(''), 2000);

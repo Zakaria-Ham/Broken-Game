@@ -27,6 +27,7 @@ const SECRET_X = -250;
 const TUNNEL_X = -500;
 const TUNNEL_EXIT = 5000;
 const COUNTDOWN_FRAMES = 180;  // 3-second countdown
+const SECOND_SPIKE_X = 2600;
 
 /* ═══════════════════════════════════════════════
    TYPES
@@ -96,13 +97,14 @@ const MOUNTAINS = Array.from({ length: 20 }, (_, i) => ({
    ═══════════════════════════════════════════════ */
 export default function RaceLevel() {
   const router = useRouter();
-  const { completeLevel, addAttempt } = useGame();
+  const { completeLevel, addAttempt, unlockTag } = useGame();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [solved, setSolved] = useState(false);
   const [deaths, setDeaths] = useState(0);
   const [secretFound, setSecretFound] = useState(false);
   const [inTunnel, setInTunnel] = useState(false);
   const [phase, setPhase] = useState<'countdown' | 'racing' | 'tunnel' | 'won'>('countdown');
+  const secondSpikeStreak = useRef(0);
 
   const gameRef = useRef({
     carX: START_X,
@@ -1074,15 +1076,26 @@ export default function RaceLevel() {
     animRef.current = requestAnimationFrame(gameLoop);
 
     /* ── helper: kill player ── */
-    function killPlayer(_cause: string) {
+    function killPlayer(cause: string) {
       if (!g.alive) return;
       g.alive = false;
       g.deathCount++;
       g.respawnTimer = 90;
       setDeaths(g.deathCount);
+
+      const nearSecondSpike = cause === 'IMPALED ON SPIKES' && g.carX + CAR_W >= SECOND_SPIKE_X && g.carX <= SECOND_SPIKE_X + 80;
+      if (nearSecondSpike) {
+        secondSpikeStreak.current += 1;
+        if (secondSpikeStreak.current >= 10) {
+          void unlockTag('murdered');
+        }
+      } else {
+        secondSpikeStreak.current = 0;
+      }
+
       addAttempt('race');
     }
-  }, [addAttempt, completeLevel, respawn]);
+  }, [addAttempt, completeLevel, respawn, unlockTag]);
 
   /* ── Draw wheel with spokes ── */
   function drawWheel(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, angle: number) {

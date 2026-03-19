@@ -3,14 +3,30 @@ import db, { isDatabaseConfigurationError } from '@/lib/db';
 
 const VALID_LEVELS = ['chess', 'button', 'cursor', 'login', 'timer', 'checkmate', 'lights', 'race', 'cursed', 'bedroom', 'blue-dot', 'labyrinth', 'rubik', 'blacknet'];
 
+function normalizeTags(raw: unknown, electricianTag: boolean): string[] {
+  const tags = Array.isArray(raw)
+    ? raw.filter((tag): tag is string => typeof tag === 'string')
+    : [];
+  const unique = Array.from(new Set(tags));
+  if (electricianTag && !unique.includes('electricien')) {
+    unique.push('electricien');
+  }
+  return unique;
+}
+
 async function getPlayerData(username: string) {
   const playerRes = await db.query(
-    'SELECT id, username, levels_completed, total_attempts, started_at, completed_at, electrician_tag FROM players WHERE username = $1',
+    'SELECT id, username, levels_completed, total_attempts, started_at, completed_at, electrician_tag, unlocked_tags, active_tag FROM players WHERE username = $1',
     [username]
   );
   if (playerRes.rows.length === 0) return null;
 
   const player = playerRes.rows[0];
+  const electricianTag = Boolean(player.electrician_tag);
+  const unlockedTags = normalizeTags(player.unlocked_tags, electricianTag);
+  const activeTag = typeof player.active_tag === 'string' && unlockedTags.includes(player.active_tag)
+    ? player.active_tag
+    : (unlockedTags[0] ?? null);
   const levelsRes = await db.query(
     'SELECT level_name, completed, attempts, completed_at FROM level_progress WHERE player_id = $1',
     [player.id]
@@ -31,7 +47,9 @@ async function getPlayerData(username: string) {
     total_attempts: player.total_attempts,
     started_at: player.started_at ? Number(player.started_at) : null,
     completed_at: player.completed_at ? Number(player.completed_at) : null,
-    electrician_tag: Boolean(player.electrician_tag),
+    electrician_tag: electricianTag,
+    unlocked_tags: unlockedTags,
+    active_tag: activeTag,
     levels,
   };
 }
@@ -127,7 +145,7 @@ export async function POST(request: NextRequest) {
 
         await db.query('DELETE FROM level_progress WHERE player_id = $1', [playerId]);
         await db.query(
-          'UPDATE players SET levels_completed = 0, total_attempts = 0, started_at = NULL, completed_at = NULL, updated_at = NOW() WHERE id = $1',
+          'UPDATE players SET levels_completed = 0, total_attempts = 0, electrician_tag = false, unlocked_tags = ARRAY[]::TEXT[], active_tag = NULL, started_at = NULL, completed_at = NULL, updated_at = NOW() WHERE id = $1',
           [playerId]
         );
         // Re-init level rows
@@ -141,8 +159,53 @@ export async function POST(request: NextRequest) {
 
       case 'set_electrician_tag': {
         await db.query(
-          'UPDATE players SET electrician_tag = true, updated_at = NOW() WHERE username = $1',
+          `UPDATE players
+           SET electrician_tag = true,
+               unlocked_tags = CASE WHEN 'electricien' = ANY(COALESCE(unlocked_tags, ARRAY[]::TEXT[])) THEN COALESCE(unlocked_tags, ARRAY[]::TEXT[]) ELSE array_append(COALESCE(unlocked_tags, ARRAY[]::TEXT[]), 'electricien') END,
+               active_tag = COALESCE(active_tag, 'electricien'),
+               updated_at = NOW()
+           WHERE username = $1`,
           [clean]
+        );
+        const player = await getPlayerData(clean);
+        if (!player) return NextResponse.json({ error: 'Player not found' }, { status: 404 });
+        return NextResponse.json({ player });
+      }
+
+      case 'unlock_tag': {
+        const tag = typeof body.tag === 'string' ? body.tag.trim() : '';
+        if (!tag) {
+          return NextResponse.json({ error: 'Tag is required' }, { status: 400 });
+        }
+        await db.query(
+          `UPDATE players
+             SET unlocked_tags = CASE WHEN $2 = ANY(COALESCE(unlocked_tags, ARRAY[]::TEXT[])) THEN COALESCE(unlocked_tags, ARRAY[]::TEXT[]) ELSE array_append(COALESCE(unlocked_tags, ARRAY[]::TEXT[]), $2) END,
+               active_tag = COALESCE(active_tag, $2),
+               electrician_tag = CASE WHEN $2 = 'electricien' THEN true ELSE electrician_tag END,
+               updated_at = NOW()
+           WHERE username = $1`,
+          [clean, tag]
+        );
+        const player = await getPlayerData(clean);
+        if (!player) return NextResponse.json({ error: 'Player not found' }, { status: 404 });
+        return NextResponse.json({ player });
+      }
+
+      case 'set_active_tag': {
+        const tag = typeof body.tag === 'string' ? body.tag.trim() : null;
+        const playerRes = await db.query('SELECT unlocked_tags FROM players WHERE username = $1', [clean]);
+        if (playerRes.rows.length === 0) return NextResponse.json({ error: 'Player not found' }, { status: 404 });
+
+        const unlocked = Array.isArray(playerRes.rows[0].unlocked_tags)
+          ? (playerRes.rows[0].unlocked_tags as string[])
+          : [];
+        if (tag && !unlocked.includes(tag)) {
+          return NextResponse.json({ error: 'Tag not unlocked' }, { status: 400 });
+        }
+
+        await db.query(
+          'UPDATE players SET active_tag = $2, updated_at = NOW() WHERE username = $1',
+          [clean, tag]
         );
         const player = await getPlayerData(clean);
         if (!player) return NextResponse.json({ error: 'Player not found' }, { status: 404 });
@@ -166,7 +229,7 @@ export async function GET() {
     message: 'Broken Internet API',
     endpoints: {
       POST: {
-        actions: ['get_progress', 'complete_level', 'add_attempt', 'start_timer', 'reset', 'set_electrician_tag'],
+        actions: ['get_progress', 'complete_level', 'add_attempt', 'start_timer', 'reset', 'set_electrician_tag', 'unlock_tag', 'set_active_tag'],
         body: { username: 'string', action: 'string', level_name: 'string (optional)' },
       },
     },

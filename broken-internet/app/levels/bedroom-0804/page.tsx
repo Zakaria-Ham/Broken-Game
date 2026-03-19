@@ -29,7 +29,7 @@ type Phase = 'bedroom' | 'pc-login' | 'pc-desktop' | 'carpet-code' | 'window-ope
 
 export default function BedroomLevel() {
   const router = useRouter();
-  const { completeLevel, addAttempt } = useGame();
+  const { completeLevel, addAttempt, unlockTag, gameState } = useGame();
 
   const [phase, setPhase] = useState<Phase>('bedroom');
   const [wifiOn, setWifiOn] = useState(true);
@@ -48,6 +48,8 @@ export default function BedroomLevel() {
   const [hoverItem, setHoverItem] = useState('');
   const [usedLongPath, setUsedLongPath] = useState(false);
   const [interactedWithLongPath, setInteractedWithLongPath] = useState(false);
+  const isSecondEntryRef = useRef(false);
+  const windowClickedInCurrentEntryRef = useRef(false);
   const tooltipTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const showTooltip = useCallback((msg: string) => {
@@ -59,6 +61,17 @@ export default function BedroomLevel() {
   useEffect(() => {
     return () => { if (tooltipTimer.current) clearTimeout(tooltipTimer.current); };
   }, []);
+
+  useEffect(() => {
+    const username = gameState.profile?.username;
+    if (!username || typeof window === 'undefined') return;
+
+    const key = `broken-internet:bedroom-entry-count:${username}`;
+    const nextCount = Number(localStorage.getItem(key) || '0') + 1;
+    localStorage.setItem(key, String(nextCount));
+    isSecondEntryRef.current = nextCount === 2;
+    windowClickedInCurrentEntryRef.current = false;
+  }, [gameState.profile?.username]);
 
   // --- BEDROOM INTERACTIONS ---
 
@@ -88,6 +101,9 @@ export default function BedroomLevel() {
       showTooltip(`The carpet feels odd...`);
     }
     if (newCount >= 7) {
+      if (isSecondEntryRef.current && !windowClickedInCurrentEntryRef.current) {
+        void unlockTag('conan');
+      }
       setPhase('carpet-code');
     }
   };
@@ -106,6 +122,7 @@ export default function BedroomLevel() {
 
   const clickWindow = () => {
     if (phase !== 'bedroom') return;
+    windowClickedInCurrentEntryRef.current = true;
     showTooltip('The window is locked. There seems to be something behind it...');
   };
 

@@ -14,7 +14,7 @@ interface LevelLayoutProps {
 
 export default function LevelLayout({ children, levelName, title }: LevelLayoutProps) {
   const router = useRouter();
-  const { gameState, isLevelUnlocked } = useGame();
+  const { gameState, isLevelUnlocked, recordHubBackClick } = useGame();
 
   useEffect(() => {
     if (!gameState.profile) {
@@ -51,7 +51,7 @@ export default function LevelLayout({ children, levelName, title }: LevelLayoutP
         padding: '0 20px',
         zIndex: 999,
       }}>
-        <Link href="/hub" style={{
+        <Link href="/hub" onClick={recordHubBackClick} style={{
           fontFamily: 'var(--font-pixel)',
           fontSize: '10px',
           color: 'var(--text-secondary)',

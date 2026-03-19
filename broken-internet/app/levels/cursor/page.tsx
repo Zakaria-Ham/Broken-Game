@@ -8,13 +8,15 @@ import { useGame } from '../../context/GameContext';
 
 export default function CursorLevel() {
   const router = useRouter();
-  const { completeLevel, addAttempt } = useGame();
+  const { completeLevel, addAttempt, unlockTag } = useGame();
   const [solved, setSolved] = useState(false);
   const [squarePos, setSquarePos] = useState({ x: 400, y: 300 });
   const [msg, setMsg] = useState('');
   const lastMouse = useRef({ x: 0, y: 0, time: Date.now() });
   const slowCount = useRef(0);
   const containerRef = useRef<HTMLDivElement>(null);
+  const wentFastRef = useRef(false);
+  const squareHoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (solved) return;
@@ -31,6 +33,7 @@ export default function CursorLevel() {
 
     // Fast cursor: square runs away
     if (speed > 3) {
+      wentFastRef.current = true;
       slowCount.current = 0;
       const container = containerRef.current;
       if (!container) return;
@@ -67,9 +70,29 @@ export default function CursorLevel() {
     setTimeout(() => setMsg(''), 2000);
   };
 
+  const handleSquareMouseEnter = () => {
+    if (!wentFastRef.current || solved || squareHoverTimer.current) return;
+    squareHoverTimer.current = setTimeout(() => {
+      squareHoverTimer.current = null;
+      void unlockTag('hover');
+    }, 10000);
+  };
+
+  const handleSquareMouseLeave = () => {
+    if (squareHoverTimer.current) {
+      clearTimeout(squareHoverTimer.current);
+      squareHoverTimer.current = null;
+    }
+  };
+
   // Initialize mouse position
   useEffect(() => {
     lastMouse.current = { x: 0, y: 0, time: Date.now() };
+    return () => {
+      if (squareHoverTimer.current) {
+        clearTimeout(squareHoverTimer.current);
+      }
+    };
   }, []);
 
   return (
@@ -113,6 +136,8 @@ export default function CursorLevel() {
         {!solved && (
           <div
             onClick={handleSquareClick}
+            onMouseEnter={handleSquareMouseEnter}
+            onMouseLeave={handleSquareMouseLeave}
             style={{
               position: 'absolute',
               left: `${squarePos.x}px`,

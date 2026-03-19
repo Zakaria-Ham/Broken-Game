@@ -6,7 +6,7 @@ import { useGame, LevelName } from '../context/GameContext';
 
 export default function ProfilePage() {
   const router = useRouter();
-  const { gameState, loginUser, registerUser, logoutUser, resetGame } = useGame();
+  const { gameState, loginUser, registerUser, logoutUser, resetGame, setActiveTag } = useGame();
   const [tab, setTab] = useState<'login' | 'register'>('login');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -18,6 +18,8 @@ export default function ProfilePage() {
   const [blackDoorAlreadyOpened, setBlackDoorAlreadyOpened] = useState(false);
 
   const profile = gameState.profile;
+  const unlockedTags = profile?.unlockedTags ?? [];
+  const activeTag = profile?.activeTag ?? null;
 
   useEffect(() => {
     if (!profile || !gameState.levels.lights.completed) {
@@ -265,10 +267,10 @@ export default function ProfilePage() {
             {profile.username}
           </h2>
 
-          {profile.electricianTag && (
+          {activeTag && (
             <div style={{
               marginTop: '-8px',
-              marginBottom: '16px',
+              marginBottom: '8px',
               display: 'inline-block',
               padding: '6px 10px',
               border: '1px solid #ffd166',
@@ -278,7 +280,44 @@ export default function ProfilePage() {
               color: '#ffd166',
               background: 'rgba(255, 209, 102, 0.1)',
             }}>
-              electricien
+              active: {activeTag}
+            </div>
+          )}
+
+          {unlockedTags.length > 0 && (
+            <div style={{ marginBottom: '18px', textAlign: 'left' }}>
+              <div style={{
+                fontFamily: 'var(--font-pixel)',
+                fontSize: '8px',
+                color: 'var(--text-secondary)',
+                marginBottom: '8px',
+                textAlign: 'center',
+              }}>
+                UNLOCKED TAGS
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center' }}>
+                {unlockedTags.map(tag => {
+                  const selected = activeTag === tag;
+                  return (
+                    <button
+                      key={tag}
+                      onClick={() => { void setActiveTag(selected ? null : tag); }}
+                      style={{
+                        padding: '5px 9px',
+                        borderRadius: '999px',
+                        border: selected ? '1px solid #ffd166' : '1px solid #3b3b3b',
+                        background: selected ? 'rgba(255, 209, 102, 0.12)' : 'rgba(255,255,255,0.03)',
+                        color: selected ? '#ffd166' : 'var(--text-secondary)',
+                        fontFamily: 'var(--font-pixel)',
+                        fontSize: '7px',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {tag}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           )}
 
@@ -360,7 +399,7 @@ export default function ProfilePage() {
               RESET GAME
             </button>
             <button
-              onClick={() => { logoutUser(); }}
+              onClick={() => { logoutUser(); router.push('/intro'); }}
               style={{
                 flex: 1, padding: '10px', fontFamily: 'var(--font-pixel)', fontSize: '8px',
                 background: 'transparent', border: '1px solid var(--text-secondary)',

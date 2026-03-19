@@ -92,8 +92,9 @@ function toToken(key: string): Token | null {
 
 export default function LabyrinthLevel() {
   const router = useRouter();
-  const { completeLevel, addAttempt } = useGame();
+  const { completeLevel, addAttempt, unlockTag } = useGame();
   const hintCommentRef = useRef<Comment | null>(null);
+  const startedAtRef = useRef<number>(0);
 
   const [playerPos, setPlayerPos] = useState<Position>(SPAWN);
   const [sequenceIndex, setSequenceIndex] = useState(0);
@@ -113,6 +114,7 @@ export default function LabyrinthLevel() {
   }, []);
 
   useEffect(() => {
+    startedAtRef.current = Date.now();
     addAttempt('labyrinth');
   }, [addAttempt]);
 
@@ -194,6 +196,9 @@ export default function LabyrinthLevel() {
       const nextIndex = sequenceIndex + 1;
       if (nextIndex >= SEQUENCE.length) {
         completeLevel('labyrinth');
+        if (Date.now() - startedAtRef.current <= 45000) {
+          void unlockTag('Icon');
+        }
         setWon(true);
         setStatus('Hidden lock cracked.');
         return;
@@ -206,7 +211,7 @@ export default function LabyrinthLevel() {
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [completeLevel, lastCorrectAt, playerPos, resetSequence, sequenceIndex, won]);
+  }, [completeLevel, lastCorrectAt, playerPos, resetSequence, sequenceIndex, unlockTag, won]);
 
   if (won) {
     return (

@@ -14,33 +14,53 @@ const WORLD_END = 2500;
 const PLAYER_W = 26;
 const PLAYER_H = 44;
 const GRAVITY = 0.58;
-const SPEED = 2.8;
-const JUMP_VEL = -11.2;
+const BASE_SPEED = 2.95;
+const JUMP_VEL = -11.4;
 
-const HOLES = [
-  { x: 260, w: 80 },
-  { x: 470, w: 110 },
-  { x: 740, w: 150 },
-  { x: 980, w: 90 },
-  { x: 1230, w: 170 },
-  { x: 1510, w: 100 },
-  { x: 1720, w: 200 },
-  { x: 2050, w: 120 },
-  { x: 2250, w: 160 },
+const BASE_HOLES = [
+  { x: 250, w: 90 },
+  { x: 470, w: 130 },
+  { x: 730, w: 160 },
+  { x: 980, w: 95 },
+  { x: 1220, w: 190 },
+  { x: 1510, w: 105 },
+  { x: 1710, w: 210 },
+  { x: 2040, w: 120 },
+  { x: 2250, w: 180 },
 ];
 
-const PLATFORMS = [
-  { x: 520, y: 270, w: 70, h: 12 },
-  { x: 780, y: 258, w: 60, h: 12 },
-  { x: 860, y: 230, w: 60, h: 12 },
-  { x: 1280, y: 272, w: 70, h: 12 },
-  { x: 1355, y: 246, w: 70, h: 12 },
-  { x: 1760, y: 272, w: 68, h: 12 },
-  { x: 1840, y: 236, w: 68, h: 12 },
-  { x: 1915, y: 204, w: 68, h: 12 },
-  { x: 2300, y: 254, w: 74, h: 12 },
-  { x: 2385, y: 220, w: 74, h: 12 },
+const BASE_PLATFORMS = [
+  { x: 515, y: 274, w: 70, h: 12 },
+  { x: 775, y: 264, w: 62, h: 12 },
+  { x: 855, y: 236, w: 62, h: 12 },
+  { x: 1270, y: 272, w: 72, h: 12 },
+  { x: 1350, y: 246, w: 72, h: 12 },
+  { x: 1750, y: 272, w: 70, h: 12 },
+  { x: 1835, y: 236, w: 70, h: 12 },
+  { x: 1915, y: 202, w: 70, h: 12 },
+  { x: 2290, y: 258, w: 76, h: 12 },
+  { x: 2380, y: 222, w: 76, h: 12 },
 ];
+
+const REVERSE_ZONES = [
+  { start: 620, end: 760 },
+  { start: 1220, end: 1380 },
+  { start: 1880, end: 2040 },
+];
+
+type Hole = { x: number; w: number };
+type Platform = {
+  x: number;
+  baseX: number;
+  y: number;
+  w: number;
+  h: number;
+  moving: boolean;
+  vx: number;
+  moveTimer: number;
+  deadlyTimer: number;
+};
+type Spike = { x: number; y: number; vy: number; size: number };
 
 interface GameData {
   x: number;
@@ -49,6 +69,15 @@ interface GameData {
   vy: number;
   onGround: boolean;
   jumpQueued: boolean;
+  holes: Hole[];
+  platforms: Platform[];
+  spikes: Spike[];
+  spikeTimer: number;
+  reverseTimer: number;
+  reverseCooldown: number;
+  slowTimer: number;
+  phaseWalkTimer: number;
+  shakeTimer: number;
   cameraX: number;
   dead: boolean;
   solved: boolean;
@@ -58,9 +87,17 @@ function clamp(n: number, lo: number, hi: number) {
   return Math.max(lo, Math.min(hi, n));
 }
 
+function randomInt(min: number, max: number) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function overlaps(ax: number, ay: number, aw: number, ah: number, bx: number, by: number, bw: number, bh: number) {
+  return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
+}
+
 export default function BlacknetLevel() {
   const router = useRouter();
-  const { completeLevel, addAttempt } = useGame();
+  const { completeLevel, addAttempt, unlockTag } = useGame();
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const gameRef = useRef<GameData | null>(null);
@@ -68,7 +105,7 @@ export default function BlacknetLevel() {
   const rafRef = useRef(0);
 
   const [deadMessage, setDeadMessage] = useState('');
-  const [statusText, setStatusText] = useState('MARIO MODE: jump gaps and use platforms.');
+  const [statusText, setStatusText] = useState('BLACKNET CHAOS: nothing behaves twice the same.');
   const [solved, setSolved] = useState(false);
   const [dead, setDead] = useState(false);
   const [seed, setSeed] = useState(0);
@@ -85,6 +122,15 @@ export default function BlacknetLevel() {
       vy: 0,
       onGround: true,
       jumpQueued: false,
+      holes: BASE_HOLES.map(h => ({ ...h })),
+      platforms: BASE_PLATFORMS.map(p => ({ ...p, baseX: p.x, moving: false, vx: 0, moveTimer: 0, deadlyTimer: 0 })),
+      spikes: [],
+      spikeTimer: randomInt(11 * 60, 15 * 60),
+      reverseTimer: 0,
+      reverseCooldown: 0,
+      slowTimer: 0,
+      phaseWalkTimer: 0,
+      shakeTimer: 0,
       cameraX: 0,
       dead: false,
       solved: false,
@@ -102,7 +148,7 @@ export default function BlacknetLevel() {
     setDead(false);
     setSolved(false);
     setDeadMessage('');
-    setStatus('MARIO MODE: jump gaps and use platforms.');
+    setStatus('BLACKNET CHAOS: nothing behaves twice the same.');
 
     const kill = (reason: string) => {
       if (g.dead || g.solved) return;
@@ -118,6 +164,51 @@ export default function BlacknetLevel() {
       setSolved(true);
       setStatus('BLACKNET STABILIZED. HUB LIGHTING CALMED.');
       completeLevel('blacknet');
+      void unlockTag('light');
+    };
+
+    const triggerJumpChaos = () => {
+      // Sometimes holes shift right when jump starts.
+      if (Math.random() < 0.36) {
+        const nearest = g.holes
+          .map((hole, idx) => ({ idx, d: Math.abs(hole.x - g.x) }))
+          .sort((a, b) => a.d - b.d)[0];
+        if (nearest && nearest.d < 280) {
+          const shift = randomInt(-120, 120);
+          const h = g.holes[nearest.idx];
+          h.x = clamp(h.x + shift, 80, WORLD_END - h.w - 40);
+          setStatus('Void shift detected. Hole moved during jump.');
+        }
+      }
+
+      // Sometimes you can walk over void for a short moment.
+      if (Math.random() < 0.18) {
+        g.phaseWalkTimer = randomInt(70, 120);
+        setStatus('Phase glitch: void collision briefly disabled.');
+      }
+
+      // Sometimes movement slows down.
+      if (Math.random() < 0.3) {
+        g.slowTimer = randomInt(130, 220);
+        setStatus('Latency spike: movement slowed.');
+      }
+
+      // Platforms near jump zone can start moving and sabotage timing.
+      const near = g.platforms.filter(p => Math.abs(p.x - g.x) <= 100);
+      if (near.length > 0 && Math.random() < 0.7) {
+        const p = near[Math.floor(Math.random() * near.length)];
+        p.moving = true;
+        p.vx = (Math.random() < 0.5 ? -1 : 1) * (1.8 + Math.random() * 1.3);
+        p.moveTimer = randomInt(70, 130);
+        setStatus('Platform drift activated.');
+      }
+
+      // Rare lethal platform trap.
+      if (near.length > 0 && Math.random() < 0.22) {
+        const p = near[Math.floor(Math.random() * near.length)];
+        p.deadlyTimer = randomInt(45, 90);
+        setStatus('Platform corruption: one platform turned lethal.');
+      }
     };
 
     const onKeyDown = (e: KeyboardEvent) => {
@@ -141,13 +232,37 @@ export default function BlacknetLevel() {
       const s = gameRef.current;
 
       if (!s.dead && !s.solved) {
-        if (keysRef.current.left && !keysRef.current.right) s.vx = -SPEED;
-        else if (keysRef.current.right && !keysRef.current.left) s.vx = SPEED;
+        if (s.reverseTimer > 0) s.reverseTimer -= 1;
+        if (s.reverseCooldown > 0) s.reverseCooldown -= 1;
+        if (s.slowTimer > 0) s.slowTimer -= 1;
+        if (s.phaseWalkTimer > 0) s.phaseWalkTimer -= 1;
+        if (s.shakeTimer > 0) s.shakeTimer -= 1;
+
+        // Reverse controls trigger in special zones.
+        if (s.reverseTimer <= 0 && s.reverseCooldown <= 0) {
+          const inReverseZone = REVERSE_ZONES.some(z => s.x >= z.start && s.x <= z.end);
+          if (inReverseZone) {
+            s.reverseTimer = randomInt(110, 190);
+            s.reverseCooldown = randomInt(210, 330);
+            s.shakeTimer = Math.max(s.shakeTimer, 120);
+            setStatus('Signal scramble: controls reversed in this sector.');
+          }
+        }
+
+        const reversed = s.reverseTimer > 0;
+        const moveSpeed = s.slowTimer > 0 ? BASE_SPEED * 0.58 : BASE_SPEED;
+
+        const leftPressed = reversed ? keysRef.current.right : keysRef.current.left;
+        const rightPressed = reversed ? keysRef.current.left : keysRef.current.right;
+
+        if (leftPressed && !rightPressed) s.vx = -moveSpeed;
+        else if (rightPressed && !leftPressed) s.vx = moveSpeed;
         else s.vx = 0;
 
         if (s.jumpQueued && s.onGround) {
           s.vy = JUMP_VEL;
           s.onGround = false;
+          triggerJumpChaos();
         }
         s.jumpQueued = false;
 
@@ -157,95 +272,185 @@ export default function BlacknetLevel() {
         s.x = clamp(s.x + s.vx, 0, WORLD_END + 40);
         s.y += s.vy;
 
+        for (const p of s.platforms) {
+          if (p.moving) {
+            p.x += p.vx;
+            if (p.x < p.baseX - 62 || p.x > p.baseX + 62) {
+              p.vx *= -1;
+            }
+            p.moveTimer -= 1;
+            if (p.moveTimer <= 0) {
+              p.moving = false;
+              p.vx = 0;
+              p.x += (p.baseX - p.x) * 0.4;
+            }
+          } else {
+            p.x += (p.baseX - p.x) * 0.2;
+          }
+          if (p.deadlyTimer > 0) p.deadlyTimer -= 1;
+        }
+
         s.onGround = false;
 
-        const isOverHole = HOLES.some(hole => s.x + PLAYER_W > hole.x && s.x < hole.x + hole.w);
-        if (!isOverHole && s.y + PLAYER_H >= GROUND_Y) {
+        const overHole = s.holes.some(hole => s.x + PLAYER_W > hole.x && s.x < hole.x + hole.w);
+        const holeActsSolid = s.phaseWalkTimer > 0;
+
+        if ((!overHole || holeActsSolid) && s.y + PLAYER_H >= GROUND_Y) {
           s.y = GROUND_Y - PLAYER_H;
           s.vy = 0;
           s.onGround = true;
         }
 
-        for (const p of PLATFORMS) {
+        for (const p of s.platforms) {
           const crossingFromAbove = prevY + PLAYER_H <= p.y && s.y + PLAYER_H >= p.y;
           const overlapX = s.x + PLAYER_W > p.x && s.x < p.x + p.w;
           if (crossingFromAbove && overlapX && s.vy >= 0) {
+            if (p.deadlyTimer > 0) {
+              kill('Corrupted platform triggered. You died on landing.');
+              break;
+            }
             s.y = p.y - PLAYER_H;
             s.vy = 0;
             s.onGround = true;
           }
         }
 
-        if (s.y > H + 120) {
-          kill('Missed the jump. You fell into the void.');
+        if (!s.dead && s.y > H + 120) {
+          kill('Missed jump. Fell into blacknet void.');
         }
 
-        if (s.x + PLAYER_W >= WORLD_END - 10) {
+        // One spike every 11-15 seconds.
+        s.spikeTimer -= 1;
+        if (s.spikeTimer <= 0) {
+          s.spikes.push({
+            x: clamp(s.x + randomInt(-170, 170), 40, WORLD_END - 40),
+            y: -30,
+            vy: 2.3 + Math.random() * 0.9,
+            size: 22,
+          });
+          s.spikeTimer = randomInt(11 * 60, 15 * 60);
+        }
+
+        for (const spike of s.spikes) {
+          spike.vy += 0.22;
+          spike.y += spike.vy;
+        }
+        s.spikes = s.spikes.filter(spike => spike.y < H + 80);
+
+        for (const spike of s.spikes) {
+          if (
+            overlaps(
+              s.x,
+              s.y,
+              PLAYER_W,
+              PLAYER_H,
+              spike.x - spike.size * 0.42,
+              spike.y - spike.size,
+              spike.size * 0.84,
+              spike.size,
+            )
+          ) {
+            kill('Falling spike hit you.');
+            break;
+          }
+        }
+
+        if (!s.dead && s.x + PLAYER_W >= WORLD_END - 10) {
           win();
         }
       }
 
       s.cameraX = clamp(s.x - W * 0.36, 0, WORLD_END - W + 120);
-      const cam = s.cameraX;
+      const shakeX = s.shakeTimer > 0 ? (Math.random() - 0.5) * 8 : 0;
+      const shakeY = s.shakeTimer > 0 ? (Math.random() - 0.5) * 6 : 0;
+      const cam = s.cameraX + shakeX;
 
       ctx.clearRect(0, 0, W, H);
 
       const sky = ctx.createLinearGradient(0, 0, 0, H);
-      sky.addColorStop(0, '#0a0f1f');
-      sky.addColorStop(1, '#04060d');
+      sky.addColorStop(0, '#090a14');
+      sky.addColorStop(1, '#03050a');
       ctx.fillStyle = sky;
       ctx.fillRect(0, 0, W, H);
 
+      for (let i = 0; i < 48; i += 1) {
+        const sx = ((i * 119) % (WORLD_END + 420)) - cam * 0.24;
+        const sy = (i * 63) % 220;
+        ctx.fillStyle = i % 2 === 0 ? '#171d2a' : '#0f141f';
+        ctx.fillRect(sx, sy, 2, 2);
+      }
+
+      // Draw ground segments between holes.
       ctx.fillStyle = '#151b2b';
       let cursor = 0;
-      for (const hole of HOLES) {
+      for (const hole of s.holes) {
         if (hole.x > cursor) {
-          ctx.fillRect(cursor - cam, GROUND_Y, hole.x - cursor, H - GROUND_Y);
+          ctx.fillRect(cursor - cam, GROUND_Y + shakeY, hole.x - cursor, H - GROUND_Y);
         }
         cursor = hole.x + hole.w;
       }
       if (cursor < WORLD_END + 220) {
-        ctx.fillRect(cursor - cam, GROUND_Y, WORLD_END + 220 - cursor, H - GROUND_Y);
+        ctx.fillRect(cursor - cam, GROUND_Y + shakeY, WORLD_END + 220 - cursor, H - GROUND_Y);
       }
 
-      for (const hole of HOLES) {
+      for (const hole of s.holes) {
         const hx = hole.x - cam;
         ctx.fillStyle = '#000';
-        ctx.fillRect(hx, GROUND_Y - 1, hole.w, 160);
-        ctx.strokeStyle = '#2f3a4e';
+        ctx.fillRect(hx, GROUND_Y - 1 + shakeY, hole.w, 160);
+        ctx.strokeStyle = s.phaseWalkTimer > 0 ? '#7ae4ff' : '#2f3a4e';
         ctx.lineWidth = 2;
-        ctx.strokeRect(hx, GROUND_Y - 1, hole.w, 16);
+        ctx.strokeRect(hx, GROUND_Y - 1 + shakeY, hole.w, 16);
       }
 
-      for (const p of PLATFORMS) {
+      for (const p of s.platforms) {
         const px = p.x - cam;
-        ctx.fillStyle = '#5a768f';
-        ctx.fillRect(px, p.y, p.w, p.h);
-        ctx.strokeStyle = '#2d465f';
-        ctx.strokeRect(px, p.y, p.w, p.h);
+        ctx.fillStyle = p.deadlyTimer > 0 ? '#8f2535' : '#5a768f';
+        ctx.fillRect(px, p.y + shakeY, p.w, p.h);
+        ctx.strokeStyle = p.deadlyTimer > 0 ? '#f78193' : '#2d465f';
+        ctx.strokeRect(px, p.y + shakeY, p.w, p.h);
+      }
+
+      for (const spike of s.spikes) {
+        const sx = spike.x - cam;
+        ctx.fillStyle = '#d8d8d8';
+        ctx.beginPath();
+        ctx.moveTo(sx, spike.y - spike.size + shakeY);
+        ctx.lineTo(sx - spike.size * 0.45, spike.y + shakeY);
+        ctx.lineTo(sx + spike.size * 0.45, spike.y + shakeY);
+        ctx.closePath();
+        ctx.fill();
       }
 
       const doorX = WORLD_END - 20 - cam;
       ctx.fillStyle = '#1f2f36';
-      ctx.fillRect(doorX, GROUND_Y - 76, 30, 76);
+      ctx.fillRect(doorX, GROUND_Y - 76 + shakeY, 30, 76);
       ctx.strokeStyle = '#9fe3d1';
       ctx.lineWidth = 2;
-      ctx.strokeRect(doorX, GROUND_Y - 76, 30, 76);
+      ctx.strokeRect(doorX, GROUND_Y - 76 + shakeY, 30, 76);
       ctx.fillStyle = '#9fe3d1';
-      ctx.fillRect(doorX + 6, GROUND_Y - 58, 18, 7);
+      ctx.fillRect(doorX + 6, GROUND_Y - 58 + shakeY, 18, 7);
 
       const px = s.x - cam;
       ctx.fillStyle = '#000';
-      ctx.fillRect(px + 6, s.y, 14, 14);
-      ctx.fillRect(px + 3, s.y + 12, 20, PLAYER_H - 16);
-      ctx.fillRect(px + 5, s.y + PLAYER_H - 2, 6, 2);
-      ctx.fillRect(px + 15, s.y + PLAYER_H - 2, 6, 2);
+      ctx.fillRect(px + 6, s.y + shakeY, 14, 14);
+      ctx.fillRect(px + 3, s.y + 12 + shakeY, 20, PLAYER_H - 16);
+      ctx.fillRect(px + 5, s.y + PLAYER_H - 2 + shakeY, 6, 2);
+      ctx.fillRect(px + 15, s.y + PLAYER_H - 2 + shakeY, 6, 2);
 
       ctx.fillStyle = '#dce7ef';
       ctx.font = '12px monospace';
       ctx.fillText(`distance: ${Math.max(0, Math.floor(WORLD_END - s.x))}`, 18, 28);
+      ctx.fillText(`spike: ${Math.ceil(s.spikeTimer / 60)}s`, 18, 46);
       ctx.fillStyle = '#aeb8c2';
-      ctx.fillText('arrows/WASD move, up/space jump', 18, 46);
+      if (s.reverseTimer > 0) {
+        ctx.fillText('controls reversed', 18, 64);
+      } else if (s.slowTimer > 0) {
+        ctx.fillText('movement slowed', 18, 64);
+      } else if (s.phaseWalkTimer > 0) {
+        ctx.fillText('void is temporarily walkable', 18, 64);
+      } else {
+        ctx.fillText('arrows/WASD move, up/space jump', 18, 64);
+      }
 
       rafRef.current = requestAnimationFrame(render);
     };
@@ -259,7 +464,7 @@ export default function BlacknetLevel() {
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
     };
-  }, [addAttempt, completeLevel, seed, setStatus, spawnGame]);
+  }, [addAttempt, completeLevel, seed, setStatus, spawnGame, unlockTag]);
 
   return (
     <LevelLayout levelName="blacknet" title="BLACKNET">
@@ -313,7 +518,7 @@ export default function BlacknetLevel() {
 
         {solved && (
           <MessageBox
-            message="Blacknet repaired. The hub network feels calmer now."
+            message="Blacknet repaired. You survived the worst node."
             onClose={() => router.push('/hub')}
             type="success"
           />

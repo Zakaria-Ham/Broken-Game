@@ -9,6 +9,8 @@ CREATE TABLE IF NOT EXISTS players (
   levels_completed INTEGER DEFAULT 0,
   total_attempts INTEGER DEFAULT 0,
   electrician_tag BOOLEAN DEFAULT FALSE,
+  unlocked_tags TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+  active_tag TEXT,
   started_at BIGINT,
   completed_at BIGINT,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

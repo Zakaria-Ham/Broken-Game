@@ -11,6 +11,8 @@ export async function GET() {
         started_at,
         completed_at,
         electrician_tag,
+        unlocked_tags,
+        active_tag,
         CASE WHEN completed_at IS NOT NULL AND started_at IS NOT NULL
           THEN completed_at - started_at
           ELSE NULL
@@ -30,6 +32,8 @@ export async function GET() {
       completedAt: row.completed_at ? Number(row.completed_at) : null,
       totalTime: row.total_time ? Number(row.total_time) : null,
       electricianTag: Boolean(row.electrician_tag),
+      unlockedTags: Array.isArray(row.unlocked_tags) ? row.unlocked_tags : [],
+      activeTag: row.active_tag ?? null,
     }));
 
     return NextResponse.json({ scoreboard });

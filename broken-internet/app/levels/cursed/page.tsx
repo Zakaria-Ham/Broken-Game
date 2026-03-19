@@ -247,12 +247,13 @@ function drawHpBar(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
    ═══════════════════════════════════════════════ */
 export default function CursedDomainLevel() {
   const router = useRouter();
-  const { completeLevel, addAttempt } = useGame();
+  const { completeLevel, addAttempt, unlockTag } = useGame();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [showVictory, setShowVictory] = useState(false);
   const [showGameOver, setShowGameOver] = useState(false);
   const [showControls, setShowControls] = useState(true);
   const restartRef = useRef<(() => void) | null>(null);
+  const smallDeathCountRef = useRef(0);
 
   const initGame = useCallback(() => {
     const bgStars = Array.from({ length: 60 }, () => ({
@@ -457,7 +458,7 @@ export default function CursedDomainLevel() {
     }
 
     /* ── Player takes damage ── */
-    function playerHit() {
+    function playerHit(source: 'small' | 'other' = 'other') {
       if (g.invulnTimer > 0 || g.hp <= 0) return;
       g.hp -= HIT_DMG;
       if (g.hp < 0) g.hp = 0;
@@ -473,6 +474,12 @@ export default function CursedDomainLevel() {
         });
       }
       if (g.hp <= 0) {
+        if (source === 'small') {
+          smallDeathCountRef.current += 1;
+          if (smallDeathCountRef.current >= 5) {
+            void unlockTag('cursed');
+          }
+        }
         // GAME OVER — restart from beginning
         g.phase = 'game_over';
         g.gameOverTimer = 0;
@@ -746,7 +753,7 @@ export default function CursedDomainLevel() {
             if (p.broken) continue;
             if (rectsOverlap(e.x, e.y, e.w, e.h, p.x, p.y, p.w, p.h) && e.vy > 0) { e.y = p.y - e.h; e.vy = 0; }
           }
-          if (rectsOverlap(e.x, e.y, e.w, e.h, g.px, g.py, PLAYER_W, PLAYER_H)) playerHit();
+          if (rectsOverlap(e.x, e.y, e.w, e.h, g.px, g.py, PLAYER_W, PLAYER_H)) playerHit('small');
         }
 
         if (e.type === 'flying') {

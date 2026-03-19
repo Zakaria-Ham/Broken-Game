@@ -35,12 +35,26 @@ async function ensureInitialized() {
           levels_completed INTEGER DEFAULT 0,
           total_attempts INTEGER DEFAULT 0,
           electrician_tag BOOLEAN DEFAULT FALSE,
+          unlocked_tags TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+          active_tag TEXT,
           started_at BIGINT,
           completed_at BIGINT,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
         ALTER TABLE players ADD COLUMN IF NOT EXISTS electrician_tag BOOLEAN DEFAULT FALSE;
+        ALTER TABLE players ADD COLUMN IF NOT EXISTS unlocked_tags TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[];
+        ALTER TABLE players ADD COLUMN IF NOT EXISTS active_tag TEXT;
+        UPDATE players
+        SET unlocked_tags = CASE
+          WHEN electrician_tag = true AND NOT ('electricien' = ANY(COALESCE(unlocked_tags, ARRAY[]::TEXT[])))
+            THEN array_append(COALESCE(unlocked_tags, ARRAY[]::TEXT[]), 'electricien')
+          ELSE COALESCE(unlocked_tags, ARRAY[]::TEXT[])
+        END,
+        active_tag = CASE
+          WHEN active_tag IS NULL AND electrician_tag = true THEN 'electricien'
+          ELSE active_tag
+        END;
         CREATE TABLE IF NOT EXISTS level_progress (
           id SERIAL PRIMARY KEY,
           player_id INTEGER REFERENCES players(id) ON DELETE CASCADE,
