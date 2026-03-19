@@ -107,7 +107,7 @@ export default function RaceLevel() {
   const secondSpikeStreak = useRef(0);
   const missedTagNote = gameState.profile?.unlockedTags.includes('murdered') || secondSpikeStreak.current >= 10
     ? ''
-    : ' This level has a hidden tag and you missed it: murdered. Hint: die 10 times in a row on the second spike section.';
+    : ' This level has a hidden tag and you missed it: murdered.';
 
   const gameRef = useRef({
     carX: START_X,

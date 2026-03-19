@@ -216,7 +216,7 @@ export default function LabyrinthLevel() {
   if (won) {
     const missedTagNote = gameState.profile?.unlockedTags.includes('Icon') || Date.now() - startedAtRef.current <= 45000
       ? ''
-      : ' This level has a hidden tag and you missed it: Icon. Hint: finish the combo in under 45 seconds.';
+      : ' This level has a hidden tag and you missed it: Icon.';
     return (
       <LevelLayout levelName="labyrinth" title="INVISIBLE LABYRINTH">
         <div

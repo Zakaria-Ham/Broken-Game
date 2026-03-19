@@ -1331,7 +1331,7 @@ export default function CursedDomainLevel() {
   const handleRetry = useCallback(() => { restartRef.current?.(); }, []);
   const missedTagNote = gameState.profile?.unlockedTags.includes('cursed') || smallDeathCountRef.current >= 5
     ? ''
-    : ' This level has a hidden tag and you missed it: cursed. Hint: get defeated by small enemies 5 times.';
+    : ' This level has a hidden tag and you missed it: cursed.';
 
   return (
     <LevelLayout levelName="cursed" title="CURSED DOMAIN">

@@ -271,7 +271,7 @@ export default function LightsLevel() {
             type="success"
             message={wonByAllResistors
               ? 'Wiring solved with all resistors active. Tag unlocked: electricien. Check your profile for key hints that update every minute.'
-              : 'Electric circuit stabilized. Bedroom light recovered. This level has a hidden tag and you missed it: electricien. Hint: win with all 6 resistors selected. Check your profile for key hints that update every minute.'}
+              : 'Electric circuit stabilized. Bedroom light recovered. This level has a hidden tag and you missed it: electricien. Check your profile for key hints that update every minute.'}
             onClose={() => router.push('/hub')}
           />
         </div>

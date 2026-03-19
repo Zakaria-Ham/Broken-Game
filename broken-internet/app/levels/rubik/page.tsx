@@ -415,7 +415,7 @@ export default function RubikLevel() {
   if (won) {
     const missedTagNote = gameState.profile?.unlockedTags.includes('ff')
       ? ''
-      : ' This level has a hidden tag and you missed it: ff. Hint: click the hidden override button once.';
+      : ' This level has a hidden tag and you missed it: ff.';
     return (
       <LevelLayout levelName="rubik" title="RUBIK GLITCH">
         <div

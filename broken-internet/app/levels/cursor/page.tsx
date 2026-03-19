@@ -99,7 +99,7 @@ export default function CursorLevel() {
 
   const missedTagNote = gameState.profile?.unlockedTags.includes('hover') || hoverTagUnlockedRef.current
     ? ''
-    : ' This level has a hidden tag and you missed it: hover. Hint: make the square run once, then hover it for 10 seconds.';
+    : ' This level has a hidden tag and you missed it: hover.';
 
   return (
     <LevelLayout levelName="cursor" title="CURSOR.TRAP">

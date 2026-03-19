@@ -52,7 +52,7 @@ export default function ButtonLevel() {
 
   const missedTagNote = gameState.profile?.unlockedTags.includes('Clicker')
     ? ''
-    : ' This level has a hidden tag and you missed it: Clicker. Hint: click the button 75 times before finishing.';
+    : ' This level has a hidden tag and you missed it: Clicker.';
 
   return (
     <LevelLayout levelName="button" title="BUTTON.EXE">

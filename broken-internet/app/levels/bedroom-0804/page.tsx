@@ -232,7 +232,7 @@ export default function BedroomLevel() {
     : 'GGs, you\'re pretty fast. Sometimes the fastest way is the simplest. -2 min from your speedrun timer!';
   const bedroomWinMessage = gameState.profile?.unlockedTags.includes('conan')
     ? winMessage
-    : `${winMessage} This level has a hidden tag and you missed it: conan. Hint: on your 2nd entry, find the carpet interface before clicking the window.`;
+    : `${winMessage} This level has a hidden tag and you missed it: conan.`;
 
   // ===================== RENDER =====================
 

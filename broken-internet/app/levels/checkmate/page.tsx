@@ -177,7 +177,7 @@ export default function CheckmateLevel() {
 
   const missedTagNote = gameState.profile?.unlockedTags.includes('murder') || kingClickStreakRef.current >= 5
     ? ''
-    : ' This level has a hidden tag and you missed it: murder. Hint: click any king 5 times in a row.';
+    : ' This level has a hidden tag and you missed it: murder.';
 
   return (
     <LevelLayout levelName="checkmate" title="CHECKMATE.BUG">
