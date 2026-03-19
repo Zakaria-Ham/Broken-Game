@@ -48,6 +48,7 @@ export default function BedroomLevel() {
   const [hoverItem, setHoverItem] = useState('');
   const [usedLongPath, setUsedLongPath] = useState(false);
   const [interactedWithLongPath, setInteractedWithLongPath] = useState(false);
+  const [conanUnlockedThisRun, setConanUnlockedThisRun] = useState(false);
   const isSecondEntryRef = useRef(false);
   const windowClickedInCurrentEntryRef = useRef(false);
   const tooltipTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -102,6 +103,7 @@ export default function BedroomLevel() {
     }
     if (newCount >= 7) {
       if (isSecondEntryRef.current && !windowClickedInCurrentEntryRef.current) {
+        setConanUnlockedThisRun(true);
         void unlockTag('conan');
       }
       setPhase('carpet-code');
@@ -231,8 +233,10 @@ export default function BedroomLevel() {
     ? 'Congrats! You could be faster but your curiousness added 3 min to your speedrun timer.'
     : 'GGs, you\'re pretty fast. Sometimes the fastest way is the simplest. -2 min from your speedrun timer!';
   const bedroomWinMessage = gameState.profile?.unlockedTags.includes('conan')
-    ? winMessage
-    : `${winMessage} This level has a hidden tag and you missed it: conan.`;
+    ? `${winMessage}${conanUnlockedThisRun ? ' Tag unlocked: conan.' : ''}`
+    : conanUnlockedThisRun
+      ? `${winMessage} Tag unlocked: conan.`
+      : `${winMessage} This level has a hidden tag and you missed it: conan.`;
 
   // ===================== RENDER =====================
 

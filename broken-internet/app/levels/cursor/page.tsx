@@ -97,9 +97,11 @@ export default function CursorLevel() {
     };
   }, []);
 
-  const missedTagNote = gameState.profile?.unlockedTags.includes('hover') || hoverTagUnlockedRef.current
-    ? ''
-    : ' This level has a hidden tag and you missed it: hover.';
+  const tagResultNote = hoverTagUnlockedRef.current
+    ? ' Tag unlocked: hover.'
+    : gameState.profile?.unlockedTags.includes('hover')
+      ? ''
+      : ' This level has a hidden tag and you missed it: hover.';
 
   return (
     <LevelLayout levelName="cursor" title="CURSOR.TRAP">
@@ -187,7 +189,7 @@ export default function CursorLevel() {
 
         {solved && (
           <MessageBox
-            message={`The square trusted you. Slow and steady wins. Level complete.${missedTagNote}`}
+            message={`The square trusted you. Slow and steady wins. Level complete.${tagResultNote}`}
             type="success"
             onClose={() => router.push('/hub')}
           />

@@ -17,12 +17,14 @@ export default function ButtonLevel() {
   const hoverTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const hoverStart = useRef<number>(0);
   const clickCount = useRef(0);
+  const clickerUnlockedThisRunRef = useRef(false);
 
   const handleClick = () => {
     if (solved) return;
     setClicked(true);
     clickCount.current += 1;
     if (clickCount.current >= 75) {
+      clickerUnlockedThisRunRef.current = true;
       void unlockTag('Clicker');
     }
     addAttempt('button');
@@ -50,9 +52,11 @@ export default function ButtonLevel() {
     }
   }, []);
 
-  const missedTagNote = gameState.profile?.unlockedTags.includes('Clicker')
-    ? ''
-    : ' This level has a hidden tag and you missed it: Clicker.';
+  const tagResultNote = clickerUnlockedThisRunRef.current
+    ? ' Tag unlocked: Clicker.'
+    : gameState.profile?.unlockedTags.includes('Clicker')
+      ? ''
+      : ' This level has a hidden tag and you missed it: Clicker.';
 
   return (
     <LevelLayout levelName="button" title="BUTTON.EXE">
@@ -130,7 +134,7 @@ export default function ButtonLevel() {
 
         {solved && (
           <MessageBox
-            message={`You hovered long enough. Patience defeats all buttons.${missedTagNote}`}
+            message={`You hovered long enough. Patience defeats all buttons.${tagResultNote}`}
             type="success"
             onClose={() => router.push('/hub')}
           />

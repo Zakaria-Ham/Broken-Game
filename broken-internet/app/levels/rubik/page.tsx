@@ -173,6 +173,7 @@ export default function RubikLevel() {
   const [consecutiveFails, setConsecutiveFails] = useState(0);
   const [showHelpConfirm, setShowHelpConfirm] = useState(false);
   const [won, setWon] = useState(false);
+  const [ffUnlockedThisRun, setFfUnlockedThisRun] = useState(false);
   const centerClicksRef = useRef<CenterClickState[]>(
     Array.from({ length: 9 }, () => ({ count: 0, lastAt: 0 }))
   );
@@ -413,9 +414,11 @@ export default function RubikLevel() {
   };
 
   if (won) {
-    const missedTagNote = gameState.profile?.unlockedTags.includes('ff')
-      ? ''
-      : ' This level has a hidden tag and you missed it: ff.';
+    const tagResultNote = ffUnlockedThisRun
+      ? ' Tag unlocked: ff.'
+      : gameState.profile?.unlockedTags.includes('ff')
+        ? ''
+        : ' This level has a hidden tag and you missed it: ff.';
     return (
       <LevelLayout levelName="rubik" title="RUBIK GLITCH">
         <div
@@ -429,7 +432,7 @@ export default function RubikLevel() {
         >
           <MessageBox
             type="success"
-            message={`You stabilized all nine faces and locked every center. Cube patched.${missedTagNote}`}
+            message={`You stabilized all nine faces and locked every center. Cube patched.${tagResultNote}`}
             onClose={() => router.push('/hub')}
           />
         </div>
@@ -601,6 +604,7 @@ export default function RubikLevel() {
               {!showHelpConfirm && (
                 <button
                   onClick={() => {
+                    setFfUnlockedThisRun(true);
                     void unlockTag('ff');
                     setShowHelpConfirm(true);
                   }}

@@ -518,7 +518,7 @@ export default function BlacknetLevel() {
 
         {solved && (
           <MessageBox
-            message="Blacknet repaired. You survived the worst node."
+            message="Blacknet repaired. You survived the worst node. Tag unlocked: light."
             onClose={() => router.push('/hub')}
             type="success"
           />

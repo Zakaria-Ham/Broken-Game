@@ -72,6 +72,7 @@ export default function CheckmateLevel() {
   const [stuckClicks, setStuckClicks] = useState(0);
   const [hintLevel, setHintLevel] = useState(0);
   const kingClickStreakRef = useRef(0);
+  const murderUnlockedThisRunRef = useRef(false);
 
   // Progressive hints when stuck
   useEffect(() => {
@@ -107,6 +108,7 @@ export default function CheckmateLevel() {
     if (clickedPiece.toLowerCase() === 'k') {
       kingClickStreakRef.current += 1;
       if (kingClickStreakRef.current >= 5) {
+        murderUnlockedThisRunRef.current = true;
         void unlockTag('murder');
       }
     } else {
@@ -175,9 +177,11 @@ export default function CheckmateLevel() {
       ? 'There has to be another way...'
       : '';
 
-  const missedTagNote = gameState.profile?.unlockedTags.includes('murder') || kingClickStreakRef.current >= 5
-    ? ''
-    : ' This level has a hidden tag and you missed it: murder.';
+  const tagResultNote = murderUnlockedThisRunRef.current
+    ? ' Tag unlocked: murder.'
+    : gameState.profile?.unlockedTags.includes('murder')
+      ? ''
+      : ' This level has a hidden tag and you missed it: murder.';
 
   return (
     <LevelLayout levelName="checkmate" title="CHECKMATE.BUG">
@@ -333,7 +337,7 @@ export default function CheckmateLevel() {
         {/* Victory */}
         {phase === 'won' && (
           <MessageBox
-            message={`Rd8#! Back rank mate! You turned the tables!${missedTagNote}`}
+            message={`Rd8#! Back rank mate! You turned the tables!${tagResultNote}`}
             type="success"
             onClose={() => router.push('/hub')}
           />

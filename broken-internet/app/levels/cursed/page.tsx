@@ -254,6 +254,7 @@ export default function CursedDomainLevel() {
   const [showControls, setShowControls] = useState(true);
   const restartRef = useRef<(() => void) | null>(null);
   const smallDeathCountRef = useRef(0);
+  const cursedUnlockedThisRunRef = useRef(false);
 
   const initGame = useCallback(() => {
     const bgStars = Array.from({ length: 60 }, () => ({
@@ -477,6 +478,7 @@ export default function CursedDomainLevel() {
         if (source === 'small') {
           smallDeathCountRef.current += 1;
           if (smallDeathCountRef.current >= 5) {
+            cursedUnlockedThisRunRef.current = true;
             void unlockTag('cursed');
           }
         }
@@ -1329,9 +1331,11 @@ export default function CursedDomainLevel() {
 
   const handleVictory = useCallback(() => { completeLevel('cursed'); router.push('/hub'); }, [completeLevel, router]);
   const handleRetry = useCallback(() => { restartRef.current?.(); }, []);
-  const missedTagNote = gameState.profile?.unlockedTags.includes('cursed') || smallDeathCountRef.current >= 5
-    ? ''
-    : ' This level has a hidden tag and you missed it: cursed.';
+  const tagResultNote = cursedUnlockedThisRunRef.current
+    ? ' Tag unlocked: cursed.'
+    : gameState.profile?.unlockedTags.includes('cursed')
+      ? ''
+      : ' This level has a hidden tag and you missed it: cursed.';
 
   return (
     <LevelLayout levelName="cursed" title="CURSED DOMAIN">
@@ -1374,7 +1378,7 @@ export default function CursedDomainLevel() {
           imageRendering: 'pixelated', maxWidth: '100%',
         }} tabIndex={0} />
 
-        {showVictory && <MessageBox message={`Cursed Seal Obtained — You have purified the domain.${missedTagNote}`} type="success" onClose={handleVictory} />}
+        {showVictory && <MessageBox message={`Cursed Seal Obtained — You have purified the domain.${tagResultNote}`} type="success" onClose={handleVictory} />}
         {showGameOver && <MessageBox message="You were consumed by the curse. Try again?" type="error" onClose={handleRetry} />}
       </div>
     </LevelLayout>

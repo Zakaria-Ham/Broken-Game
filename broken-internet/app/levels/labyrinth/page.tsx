@@ -102,6 +102,7 @@ export default function LabyrinthLevel() {
   const [lastCorrectAt, setLastCorrectAt] = useState<number | null>(null);
   const [sonarVisible, setSonarVisible] = useState(false);
   const [won, setWon] = useState(false);
+  const [iconUnlockedThisRun, setIconUnlockedThisRun] = useState(false);
 
   const progressText = useMemo(() => {
     return `${sequenceIndex}/${SEQUENCE.length}`;
@@ -197,6 +198,7 @@ export default function LabyrinthLevel() {
       if (nextIndex >= SEQUENCE.length) {
         completeLevel('labyrinth');
         if (Date.now() - startedAtRef.current <= 45000) {
+          setIconUnlockedThisRun(true);
           void unlockTag('Icon');
         }
         setWon(true);
@@ -214,9 +216,11 @@ export default function LabyrinthLevel() {
   }, [completeLevel, lastCorrectAt, playerPos, resetSequence, sequenceIndex, unlockTag, won]);
 
   if (won) {
-    const missedTagNote = gameState.profile?.unlockedTags.includes('Icon') || Date.now() - startedAtRef.current <= 45000
-      ? ''
-      : ' This level has a hidden tag and you missed it: Icon.';
+    const tagResultNote = iconUnlockedThisRun
+      ? ' Tag unlocked: Icon.'
+      : gameState.profile?.unlockedTags.includes('Icon')
+        ? ''
+        : ' This level has a hidden tag and you missed it: Icon.';
     return (
       <LevelLayout levelName="labyrinth" title="INVISIBLE LABYRINTH">
         <div
@@ -229,7 +233,7 @@ export default function LabyrinthLevel() {
           }}
         >
           <MessageBox
-            message={`You decoded the invisible labyrinth. Portal stabilized.${missedTagNote}`}
+            message={`You decoded the invisible labyrinth. Portal stabilized.${tagResultNote}`}
             type="success"
             onClose={() => router.push('/hub')}
           />
