@@ -126,9 +126,6 @@ If database is not configured, API returns a `503` error.
 
 ```bash
 npm run dev    # start development server
-npm run build  # create production build
-npm run start  # run production server
-npm run lint   # run ESLint
 ```
 
 ## Project structure (important parts)
@@ -139,47 +136,6 @@ npm run lint   # run ESLint
 - `lib/db.ts` - PostgreSQL connection + initialization
 - `schema.sql` - manual DB schema bootstrap
 
-## Troubleshooting
 
-### Error: Database is not configured
 
-Cause:
 
-- `DATABASE_URL` missing or invalid.
-
-Fix:
-
-1. Confirm `.env.local` exists in project root.
-2. Confirm `DATABASE_URL` is correct.
-3. Restart dev server after changing env vars.
-
-### Error: client password must be a string
-
-Cause:
-
-- Connection string is malformed or password is missing.
-
-Fix:
-
-1. Re-check `DATABASE_URL` format.
-2. Ensure password section is present.
-
-### Error connecting with psql on Windows
-
-Try explicit host and port:
-
-```bash
-psql -h localhost -p 5432 -U postgres -d broken_internet -f schema.sql
-```
-
-If prompted for password, enter your PostgreSQL password.
-
-## Production notes
-
-- Set `DATABASE_URL` in your hosting environment.
-- Run `npm run build` before `npm run start`.
-- Ensure PostgreSQL network access/firewall rules allow your app host.
-
-## License
-
-Add your preferred license here (MIT, Apache-2.0, etc.).
