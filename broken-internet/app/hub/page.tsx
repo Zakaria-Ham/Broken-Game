@@ -94,9 +94,14 @@ export default function HubPage() {
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',
-      justifyContent: 'center',
+      justifyContent: 'flex-start',
+      paddingTop: '78px',
+      paddingBottom: '110px',
+      boxSizing: 'border-box',
+      width: '100%',
       position: 'relative',
-      overflow: 'hidden',
+      overflowX: 'hidden',
+      overflowY: 'auto',
     }}>
       {/* Ambient particles */}
       <div style={{
@@ -172,6 +177,7 @@ export default function HubPage() {
         fontFamily: 'var(--font-pixel)',
         fontSize: 'clamp(16px, 3vw, 28px)',
         color: 'var(--text-primary)',
+        marginTop: '8px',
         marginBottom: '10px',
         opacity: entered ? 1 : 0,
         transition: 'opacity 1s ease',
@@ -185,7 +191,7 @@ export default function HubPage() {
         fontFamily: 'var(--font-terminal)',
         fontSize: '20px',
         color: 'var(--text-secondary)',
-        marginBottom: '50px',
+        marginBottom: '34px',
         opacity: entered ? 1 : 0,
         transition: 'opacity 1.5s ease',
         position: 'relative',
