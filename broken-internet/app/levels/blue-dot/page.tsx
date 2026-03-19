@@ -10,7 +10,7 @@ type Phase = 'playing' | 'won' | 'lost' | 'blocked';
 type DotPosition = { xPercent: number; yPercent: number };
 
 const ROUND_DURATION_MS = 5 * 60 * 1000;
-const LOCKOUT_MS = 10 * 60 * 1000;
+const LOCKOUT_MS = 5 * 60 * 1000;
 const LOSS_PENALTY_MS = 2 * 60 * 1000;
 const WIN_BONUS_MS = 1 * 60 * 1000;
 const MISCLICK_PENALTY_MS = 4500;

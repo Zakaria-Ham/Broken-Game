@@ -2,7 +2,23 @@
 
 import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
 
-export type LevelName = 'chess' | 'button' | 'cursor' | 'login' | 'timer' | 'checkmate' | 'lights' | 'race' | 'cursed' | 'bedroom' | 'blue-dot' | 'labyrinth' | 'rubik';
+export type LevelName = 'chess' | 'button' | 'cursor' | 'login' | 'timer' | 'checkmate' | 'lights' | 'race' | 'cursed' | 'bedroom' | 'blue-dot' | 'labyrinth' | 'rubik' | 'blacknet';
+
+export const MAIN_LEVEL_ORDER: LevelName[] = [
+  'button',
+  'timer',
+  'cursor',
+  'login',
+  'chess',
+  'checkmate',
+  'race',
+  'blue-dot',
+  'cursed',
+  'bedroom',
+  'labyrinth',
+  'rubik',
+  'lights',
+];
 
 interface LevelState {
   completed: boolean;
@@ -13,6 +29,7 @@ interface LevelState {
 interface UserProfile {
   username: string;
   createdAt: number;
+  electricianTag: boolean;
 }
 
 interface GameState {
@@ -32,12 +49,14 @@ interface GameContextType {
   resetGame: () => void;
   isLevelCompleted: (level: LevelName) => boolean;
   getLevelAttempts: (level: LevelName) => number;
+  isLevelUnlocked: (level: LevelName) => boolean;
   loginUser: (username: string, password: string) => Promise<boolean>;
   registerUser: (username: string, password: string) => Promise<boolean>;
   logoutUser: () => void;
   startTimer: () => void;
   getElapsedTime: () => number;
   getAllProfiles: () => Promise<ProfileEntry[]>;
+  setElectricianTag: () => Promise<void>;
 }
 
 export interface ProfileEntry {
@@ -46,6 +65,7 @@ export interface ProfileEntry {
   totalTime: number | null;
   totalAttempts: number;
   levelsCompleted: number;
+  electricianTag: boolean;
 }
 
 const defaultLevelState: LevelState = { completed: false, attempts: 0 };
@@ -65,6 +85,7 @@ const initialGameState: GameState = {
     'blue-dot': { ...defaultLevelState },
     labyrinth: { ...defaultLevelState },
     rubik: { ...defaultLevelState },
+    blacknet: { ...defaultLevelState },
   },
   totalAttempts: 0,
   allCompleted: false,
@@ -95,9 +116,9 @@ function saveState(state: GameState) {
 }
 
 // Sync local state from API player data
-function applyServerData(prev: GameState, data: { levels: Record<string, { completed: boolean; attempts: number; completedAt: number | null }>; total_attempts: number; started_at: number | null; completed_at: number | null; levels_completed: number }): GameState {
+function applyServerData(prev: GameState, data: { levels: Record<string, { completed: boolean; attempts: number; completedAt: number | null }>; total_attempts: number; started_at: number | null; completed_at: number | null; levels_completed: number; electrician_tag?: boolean }): GameState {
   const levels = { ...prev.levels } as Record<LevelName, LevelState>;
-  for (const key of ['chess', 'button', 'cursor', 'login', 'timer', 'checkmate', 'lights', 'race', 'cursed', 'bedroom', 'blue-dot', 'labyrinth', 'rubik'] as LevelName[]) {
+  for (const key of ['chess', 'button', 'cursor', 'login', 'timer', 'checkmate', 'lights', 'race', 'cursed', 'bedroom', 'blue-dot', 'labyrinth', 'rubik', 'blacknet'] as LevelName[]) {
     if (data.levels[key]) {
       levels[key] = {
         completed: data.levels[key].completed,
@@ -107,6 +128,9 @@ function applyServerData(prev: GameState, data: { levels: Record<string, { compl
     }
   }
   const allCompleted = Object.values(levels).every(l => l.completed);
+  const profile = prev.profile
+    ? { ...prev.profile, electricianTag: Boolean(data.electrician_tag) }
+    : prev.profile;
   return {
     ...prev,
     levels,
@@ -114,6 +138,7 @@ function applyServerData(prev: GameState, data: { levels: Record<string, { compl
     allCompleted,
     startedAt: data.started_at,
     completedAt: data.completed_at,
+    profile,
   };
 }
 
@@ -239,6 +264,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         'blue-dot': { ...defaultLevelState },
         labyrinth: { ...defaultLevelState },
         rubik: { ...defaultLevelState },
+        blacknet: { ...defaultLevelState },
       },
       profile,
       startedAt: null,
@@ -264,7 +290,11 @@ export function GameProvider({ children }: { children: ReactNode }) {
       });
       if (!res.ok) return false;
       const data = await res.json();
-      const profile: UserProfile = { username: data.user.username, createdAt: new Date(data.user.createdAt).getTime() };
+      const profile: UserProfile = {
+        username: data.user.username,
+        createdAt: new Date(data.user.createdAt).getTime(),
+        electricianTag: Boolean(data.user.electricianTag),
+      };
       setGameState(prev => ({ ...prev, profile }));
       return true;
     } catch {
@@ -281,7 +311,11 @@ export function GameProvider({ children }: { children: ReactNode }) {
       });
       if (!res.ok) return false;
       const data = await res.json();
-      const profile: UserProfile = { username: data.user.username, createdAt: new Date(data.user.createdAt).getTime() };
+      const profile: UserProfile = {
+        username: data.user.username,
+        createdAt: new Date(data.user.createdAt).getTime(),
+        electricianTag: Boolean(data.user.electricianTag),
+      };
 
       // Load progress from server
       const progressRes = await fetch('/api/progress', {
@@ -343,6 +377,28 @@ export function GameProvider({ children }: { children: ReactNode }) {
     [gameState]
   );
 
+  const isLevelUnlocked = useCallback(
+    (level: LevelName): boolean => {
+      if (!gameState.profile) return false;
+
+      if (level === 'blacknet') {
+        if (!gameState.levels.lights.completed) return false;
+        if (typeof window === 'undefined') return false;
+        const key = `broken-internet:black-door-opened:${gameState.profile.username}`;
+        return localStorage.getItem(key) === '1';
+      }
+
+      const idx = MAIN_LEVEL_ORDER.indexOf(level);
+      if (idx < 0) return true;
+      if (idx === 0) return true;
+
+      const prevLevel = MAIN_LEVEL_ORDER[idx - 1];
+      const prevState = gameState.levels[prevLevel];
+      return prevState.completed || prevState.attempts >= 3;
+    },
+    [gameState.levels, gameState.profile]
+  );
+
   const getAllProfiles = useCallback(async (): Promise<ProfileEntry[]> => {
     try {
       const res = await fetch('/api/scoreboard');
@@ -354,13 +410,37 @@ export function GameProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const setElectricianTag = useCallback(async (): Promise<void> => {
+    setGameState(prev => {
+      if (!prev.profile || prev.profile.electricianTag) return prev;
+      return {
+        ...prev,
+        profile: {
+          ...prev.profile,
+          electricianTag: true,
+        },
+      };
+    });
+
+    const username = gameState.profile?.username;
+    if (!username) return;
+
+    try {
+      await fetch('/api/progress', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'set_electrician_tag', username }),
+      });
+    } catch {}
+  }, [gameState.profile?.username]);
+
   return (
     <GameContext.Provider
       value={{
         gameState, completeLevel, addAttempt, adjustSpeedrunTime, resetGame,
-        isLevelCompleted, getLevelAttempts,
+        isLevelCompleted, getLevelAttempts, isLevelUnlocked,
         loginUser, registerUser, logoutUser,
-        startTimer, getElapsedTime, getAllProfiles,
+        startTimer, getElapsedTime, getAllProfiles, setElectricianTag,
       }}
     >
       {children}

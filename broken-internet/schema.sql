@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS players (
   password_hash VARCHAR(255) NOT NULL,
   levels_completed INTEGER DEFAULT 0,
   total_attempts INTEGER DEFAULT 0,
+  electrician_tag BOOLEAN DEFAULT FALSE,
   started_at BIGINT,
   completed_at BIGINT,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

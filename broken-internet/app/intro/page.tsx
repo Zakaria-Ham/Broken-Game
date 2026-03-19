@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useGame } from '../context/GameContext';
 
 // ──────────────── constants ────────────────
 const W = 1000;
@@ -14,6 +15,11 @@ const CHAR_W = 28;
 const CHAR_H = 34;
 const HOLE_X = 750;
 const HOLE_WIDTH = 90;
+const WALL_X = HOLE_X + HOLE_WIDTH + 200;
+const WALL_W = 44;
+const WALL_H = 240;
+const HOLE_OPEN_COINS = 6;
+const SIXTH_COIN_DELAY_MS = 10000;
 
 interface Platform {
   x: number; y: number; w: number;
@@ -34,16 +40,53 @@ const INITIAL_COINS: Coin[] = [
   { x: 120, y: 280, collected: false },
   { x: 680, y: 280, collected: false },
 ];
+const SIXTH_COIN: Coin = { x: 695, y: 185, collected: false };
 
 export default function IntroPage() {
   const router = useRouter();
+  const { gameState, loginUser, registerUser } = useGame();
+  const profile = gameState.profile;
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const keysRef = useRef<Set<string>>(new Set());
   const [fell, setFell] = useState(false);
   const [fadeOut, setFadeOut] = useState(false);
+  const [authTab, setAuthTab] = useState<'login' | 'register'>('login');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [authError, setAuthError] = useState('');
+  const [authBusy, setAuthBusy] = useState(false);
   const fellRef = useRef(false);
 
+  const handleAuthSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError('');
+    if (username.trim().length < 2) {
+      setAuthError('Username must be at least 2 characters.');
+      return;
+    }
+    if (password.length < 3) {
+      setAuthError('Password must be at least 3 characters.');
+      return;
+    }
+
+    setAuthBusy(true);
+    const ok = authTab === 'login'
+      ? await loginUser(username.trim(), password)
+      : await registerUser(username.trim(), password);
+    setAuthBusy(false);
+
+    if (!ok) {
+      setAuthError(authTab === 'login' ? 'Wrong username or password.' : 'Username already taken.');
+      return;
+    }
+
+    setUsername('');
+    setPassword('');
+  };
+
   useEffect(() => {
+    if (!profile) return;
+
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
@@ -57,9 +100,11 @@ export default function IntroPage() {
     let onGround = true;
     let facing = 1; // 1 right, -1 left
     let animTick = 0;
-    let coins = INITIAL_COINS.map(c => ({ ...c }));
+    const coins = INITIAL_COINS.map(c => ({ ...c }));
     let score = 0;
     let cameraX = 0;
+    let sixthRevealAt: number | null = null;
+    let sixthCoinAdded = false;
 
     // ── input ──
     const onKeyDown = (e: KeyboardEvent) => {
@@ -74,7 +119,8 @@ export default function IntroPage() {
     window.addEventListener('keyup', onKeyUp);
 
     // ── helpers ──
-    function isOverHole(px: number) {
+    function isOverHole(px: number, holeOpen: boolean) {
+      if (!holeOpen) return false;
       return px + CHAR_W / 2 > HOLE_X + 8 && px + CHAR_W / 2 < HOLE_X + HOLE_WIDTH - 8;
     }
 
@@ -178,17 +224,50 @@ export default function IntroPage() {
         ctx.fillRect(gx + 10, GROUND_Y + 18, 18, 10);
       }
 
-      // Hole in the world
+      const holeOpen = score >= HOLE_OPEN_COINS;
+
+      // Hole in the world (opens only after all 6 coins)
       const holeScreenX = HOLE_X - cameraX;
-      ctx.fillStyle = '#000';
-      ctx.fillRect(holeScreenX, GROUND_Y, HOLE_WIDTH, H - GROUND_Y);
-      // Hole edges
-      ctx.fillStyle = '#ff335566';
-      ctx.fillRect(holeScreenX - 3, GROUND_Y - 2, 6, H - GROUND_Y + 2);
-      ctx.fillRect(holeScreenX + HOLE_WIDTH - 3, GROUND_Y - 2, 6, H - GROUND_Y + 2);
-      // Hole glow
-      ctx.fillStyle = 'rgba(255,0,50,0.05)';
-      ctx.fillRect(holeScreenX - 10, GROUND_Y + 5, HOLE_WIDTH + 20, 60);
+      if (holeOpen) {
+        ctx.fillStyle = '#000';
+        ctx.fillRect(holeScreenX, GROUND_Y, HOLE_WIDTH, H - GROUND_Y);
+        // Hole edges
+        ctx.fillStyle = '#ff335566';
+        ctx.fillRect(holeScreenX - 3, GROUND_Y - 2, 6, H - GROUND_Y + 2);
+        ctx.fillRect(holeScreenX + HOLE_WIDTH - 3, GROUND_Y - 2, 6, H - GROUND_Y + 2);
+        // Hole glow
+        ctx.fillStyle = 'rgba(255,0,50,0.05)';
+        ctx.fillRect(holeScreenX - 10, GROUND_Y + 5, HOLE_WIDTH + 20, 60);
+      } else {
+        // Closed hatch area before the final coin opens the drop
+        ctx.fillStyle = '#2f2f46';
+        ctx.fillRect(holeScreenX, GROUND_Y, HOLE_WIDTH, 3);
+        ctx.fillStyle = '#4b4b66';
+        for (let i = 0; i < HOLE_WIDTH; i += 12) {
+          ctx.fillRect(holeScreenX + i, GROUND_Y + 3, 8, 8);
+        }
+      }
+
+      // Carton wall barrier immediately after the danger hole
+      const wallScreenX = WALL_X - cameraX;
+      const wallY = GROUND_Y - WALL_H;
+      ctx.fillStyle = '#8a5a2b';
+      ctx.fillRect(wallScreenX, wallY, WALL_W, WALL_H);
+      ctx.strokeStyle = '#4f2f11';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(wallScreenX, wallY, WALL_W, WALL_H);
+      ctx.strokeStyle = '#b87b3e';
+      ctx.beginPath();
+      ctx.moveTo(wallScreenX + 4, wallY + 15);
+      ctx.lineTo(wallScreenX + WALL_W - 4, wallY + 40);
+      ctx.moveTo(wallScreenX + 6, wallY + 95);
+      ctx.lineTo(wallScreenX + WALL_W - 6, wallY + 122);
+      ctx.moveTo(wallScreenX + 4, wallY + 170);
+      ctx.lineTo(wallScreenX + WALL_W - 4, wallY + 196);
+      ctx.stroke();
+      ctx.fillStyle = '#f4d9ac';
+      ctx.font = '9px "Press Start 2P", monospace';
+      ctx.fillText('CARTON', wallScreenX - 4, wallY - 8);
 
       // ⚠ DANGER sign
       const signX = holeScreenX + HOLE_WIDTH / 2;
@@ -202,7 +281,7 @@ export default function IntroPage() {
       ctx.fillStyle = '#ffcc00';
       ctx.font = 'bold 11px "Press Start 2P", monospace';
       ctx.textAlign = 'center';
-      ctx.fillText('DANGER', signX, signY + 15);
+      ctx.fillText(holeOpen ? 'DANGER' : 'LOCKED', signX, signY + 15);
       // Skull icon
       ctx.fillStyle = '#ffcc00';
       ctx.fillText('☠', signX, signY - 5);
@@ -247,7 +326,7 @@ export default function IntroPage() {
       ctx.strokeRect(10, 10, 140, 30);
       ctx.fillStyle = '#ffcc00';
       ctx.font = '12px "Press Start 2P", monospace';
-      ctx.fillText('COINS: ' + score + '/' + INITIAL_COINS.length, 20, 30);
+      ctx.fillText('COINS: ' + score + '/' + HOLE_OPEN_COINS, 20, 30);
 
       // Controls help
       ctx.fillStyle = 'rgba(0,0,0,0.5)';
@@ -266,6 +345,11 @@ export default function IntroPage() {
       if (fellRef.current) return;
       animTick++;
 
+      if (sixthRevealAt !== null && !sixthCoinAdded && Date.now() >= sixthRevealAt) {
+        coins.push({ ...SIXTH_COIN });
+        sixthCoinAdded = true;
+      }
+
       const keys = keysRef.current;
       // Movement
       vx = 0;
@@ -279,9 +363,13 @@ export default function IntroPage() {
 
       // Clamp left
       if (x < 0) x = 0;
+      // Hard stop at the carton wall so player cannot escape to the right side.
+      if (x > WALL_X - CHAR_W) x = WALL_X - CHAR_W;
+
+      const holeOpen = score >= HOLE_OPEN_COINS;
 
       // Ground collision (only if not over hole)
-      if (!isOverHole(x)) {
+      if (!isOverHole(x, holeOpen)) {
         if (y + CHAR_H >= GROUND_Y) {
           y = GROUND_Y - CHAR_H;
           vy = 0;
@@ -303,6 +391,10 @@ export default function IntroPage() {
         if (x + CHAR_W > c.x && x < c.x + 12 && y + CHAR_H > c.y && y < c.y + 10) {
           c.collected = true;
           score++;
+
+          if (score === INITIAL_COINS.length && sixthRevealAt === null) {
+            sixthRevealAt = Date.now() + SIXTH_COIN_DELAY_MS;
+          }
         }
       }
 
@@ -334,7 +426,7 @@ export default function IntroPage() {
       window.removeEventListener('keyup', onKeyUp);
       cancelAnimationFrame(raf);
     };
-  }, []);
+  }, [profile]);
 
   // Fell → fade → hub
   useEffect(() => {
@@ -358,7 +450,143 @@ export default function IntroPage() {
       tabIndex={0}
       onKeyDown={() => {}}
     >
-      {!fell && (
+      {!profile && (
+        <div style={{
+          width: '100%',
+          maxWidth: '380px',
+          background: 'rgba(10,10,20,0.92)',
+          border: '1px solid #2b2b44',
+          borderRadius: '10px',
+          padding: '24px',
+          boxShadow: '0 0 40px rgba(170,68,255,0.12)',
+        }}>
+          <h1 style={{
+            margin: 0,
+            marginBottom: '10px',
+            textAlign: 'center',
+            fontFamily: 'var(--font-pixel)',
+            fontSize: '14px',
+            color: 'var(--accent-purple)',
+          }}>
+            CONNECT TO START
+          </h1>
+          <p style={{
+            marginTop: 0,
+            marginBottom: '18px',
+            textAlign: 'center',
+            fontFamily: 'var(--font-terminal)',
+            fontSize: '16px',
+            color: 'var(--text-secondary)',
+          }}>
+            Sign in or register first. The game starts only after authentication.
+          </p>
+
+          <div style={{ display: 'flex', gap: '6px', marginBottom: '16px' }}>
+            <button
+              onClick={() => { setAuthTab('login'); setAuthError(''); }}
+              style={{
+                flex: 1,
+                padding: '10px',
+                fontFamily: 'var(--font-pixel)',
+                fontSize: '9px',
+                border: '1px solid #333',
+                background: authTab === 'login' ? 'var(--accent-purple)' : '#1a1a1a',
+                color: authTab === 'login' ? '#fff' : 'var(--text-secondary)',
+                cursor: 'pointer',
+              }}
+            >
+              SIGN IN
+            </button>
+            <button
+              onClick={() => { setAuthTab('register'); setAuthError(''); }}
+              style={{
+                flex: 1,
+                padding: '10px',
+                fontFamily: 'var(--font-pixel)',
+                fontSize: '9px',
+                border: '1px solid #333',
+                background: authTab === 'register' ? 'var(--accent-purple)' : '#1a1a1a',
+                color: authTab === 'register' ? '#fff' : 'var(--text-secondary)',
+                cursor: 'pointer',
+              }}
+            >
+              REGISTER
+            </button>
+          </div>
+
+          <form onSubmit={handleAuthSubmit}>
+            <input
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="username"
+              maxLength={30}
+              style={{
+                width: '100%',
+                marginBottom: '10px',
+                padding: '10px',
+                background: '#141424',
+                border: '1px solid #333',
+                borderRadius: '4px',
+                color: 'var(--text-primary)',
+                fontFamily: 'var(--font-terminal)',
+                fontSize: '17px',
+              }}
+            />
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="password"
+              maxLength={50}
+              style={{
+                width: '100%',
+                marginBottom: '14px',
+                padding: '10px',
+                background: '#141424',
+                border: '1px solid #333',
+                borderRadius: '4px',
+                color: 'var(--text-primary)',
+                fontFamily: 'var(--font-terminal)',
+                fontSize: '17px',
+              }}
+            />
+            <button
+              type="submit"
+              disabled={authBusy}
+              style={{
+                width: '100%',
+                padding: '12px',
+                fontFamily: 'var(--font-pixel)',
+                fontSize: '9px',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: authBusy ? 'not-allowed' : 'pointer',
+                opacity: authBusy ? 0.7 : 1,
+                background: 'var(--accent-green)',
+                color: '#071210',
+              }}
+            >
+              {authBusy ? 'PLEASE WAIT...' : authTab === 'login' ? 'ENTER THE GAME' : 'CREATE & ENTER'}
+            </button>
+          </form>
+
+          {authError && (
+            <p style={{
+              marginTop: '12px',
+              marginBottom: 0,
+              textAlign: 'center',
+              color: 'var(--accent-red)',
+              fontFamily: 'var(--font-terminal)',
+              fontSize: '16px',
+            }}>
+              {authError}
+            </p>
+          )}
+        </div>
+      )}
+
+      {profile && !fell && (
         <>
           <canvas
             ref={canvasRef}
@@ -375,12 +603,12 @@ export default function IntroPage() {
             color: 'var(--text-secondary)',
             animation: 'fadeIn 1s ease-out',
           }}>
-            Use arrow keys or WASD to move — SPACE to jump — reach the hole...
+            Collect 6 coins to open the danger hole. The last coin appears 10s after the 5th.
           </p>
         </>
       )}
 
-      {fell && (
+      {profile && fell && (
         <div style={{ animation: 'fadeIn 0.8s ease-out', textAlign: 'center' }}>
           <p style={{
             fontFamily: 'var(--font-pixel)',

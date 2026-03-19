@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Portal from '../components/Portal';
+import MessageBox from '../components/MessageBox';
 import { useGame } from '../context/GameContext';
 
 function formatTime(ms: number): string {
@@ -15,38 +16,81 @@ function formatTime(ms: number): string {
 }
 
 export default function HubPage() {
-  const { gameState } = useGame();
+  const { gameState, startTimer } = useGame();
   const router = useRouter();
   const [entered, setEntered] = useState(false);
-  const [elapsed, setElapsed] = useState(0);
+  const [nowTick, setNowTick] = useState(() => Date.now());
   const [mounted, setMounted] = useState(false);
+  const [showKeyHint, setShowKeyHint] = useState(false);
+  const [blackDoorOpen, setBlackDoorOpen] = useState(false);
+  const [doorAnimating, setDoorAnimating] = useState(false);
 
   useEffect(() => {
     setMounted(true);
     setEntered(true);
   }, []);
 
+  // Start timer automatically when a signed-in user reaches hub.
+  useEffect(() => {
+    if (!gameState.profile) return;
+    if (gameState.startedAt || gameState.completedAt) return;
+    startTimer();
+  }, [gameState.profile, gameState.startedAt, gameState.completedAt, startTimer]);
+
   // Live timer tick
   useEffect(() => {
     if (!gameState.startedAt) return;
-    if (gameState.completedAt) {
-      setElapsed(gameState.completedAt - gameState.startedAt);
-      return;
-    }
+    if (gameState.completedAt) return;
+
     const iv = setInterval(() => {
-      setElapsed(Date.now() - gameState.startedAt!);
+      setNowTick(Date.now());
     }, 1000);
     return () => clearInterval(iv);
   }, [gameState.startedAt, gameState.completedAt]);
 
+  const elapsed = gameState.startedAt
+    ? Math.max(0, (gameState.completedAt ?? nowTick) - gameState.startedAt)
+    : 0;
+
   const completedCount = Object.values(gameState.levels).filter(l => l.completed).length;
+  const totalLevels = Object.keys(gameState.levels).length;
   const profile = mounted ? gameState.profile : null;
   const allCompleted = mounted ? gameState.allCompleted : false;
+  const blacknetFixed = gameState.levels.blacknet?.completed;
+  const lightsDone = gameState.levels.lights.completed;
+
+  useEffect(() => {
+    if (!profile) return;
+    const openedKey = `broken-internet:black-door-opened:${profile.username}`;
+    const pendingKey = `broken-internet:black-door-opening-pending:${profile.username}`;
+    const hintKey = `broken-internet:black-door-hint-shown:${profile.username}`;
+
+    const opened = localStorage.getItem(openedKey) === '1';
+    const pending = localStorage.getItem(pendingKey) === '1';
+
+    setBlackDoorOpen(opened);
+
+    if (lightsDone && !opened && !localStorage.getItem(hintKey)) {
+      setShowKeyHint(true);
+      localStorage.setItem(hintKey, '1');
+    }
+
+    if (pending) {
+      setDoorAnimating(true);
+      localStorage.removeItem(pendingKey);
+      localStorage.setItem(openedKey, '1');
+      setBlackDoorOpen(true);
+      const t = setTimeout(() => setDoorAnimating(false), 1800);
+      return () => clearTimeout(t);
+    }
+  }, [lightsDone, profile]);
 
   return (
     <div style={{
       minHeight: '100vh',
-      background: 'radial-gradient(ellipse at center bottom, #0a0a2e 0%, #050505 70%)',
+      background: blacknetFixed
+        ? 'radial-gradient(ellipse at center bottom, #1c3240 0%, #0e1c27 58%, #091219 100%)'
+        : 'radial-gradient(ellipse at center bottom, #0a0a2e 0%, #050505 70%)',
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',
@@ -58,7 +102,13 @@ export default function HubPage() {
       <div style={{
         position: 'absolute',
         inset: 0,
-        backgroundImage: `
+        backgroundImage: blacknetFixed
+          ? `
+          radial-gradient(circle at 20% 30%, rgba(94,174,214,0.10) 0%, transparent 46%),
+          radial-gradient(circle at 80% 70%, rgba(130,255,201,0.09) 0%, transparent 52%),
+          radial-gradient(circle at 50% 55%, rgba(120,180,255,0.06) 0%, transparent 60%)
+        `
+          : `
           radial-gradient(circle at 20% 30%, rgba(170,68,255,0.05) 0%, transparent 50%),
           radial-gradient(circle at 80% 70%, rgba(0,255,136,0.05) 0%, transparent 50%),
           radial-gradient(circle at 50% 50%, rgba(68,136,255,0.03) 0%, transparent 60%)
@@ -101,7 +151,7 @@ export default function HubPage() {
           color: allCompleted ? 'var(--accent-green)' : 'var(--accent-yellow)',
           textShadow: allCompleted ? '0 0 10px rgba(0,255,136,0.4)' : 'none',
         }}>
-          ⏱ {gameState.startedAt ? (elapsed > 0 ? formatTime(elapsed) : '0s') : '—'}
+          ⏱ {gameState.profile ? formatTime(elapsed) : '—'}
           {allCompleted && ' ★'}
         </div>
 
@@ -141,7 +191,7 @@ export default function HubPage() {
         position: 'relative',
         zIndex: 1,
       }}>
-        {completedCount}/13 websites fixed — {completedCount === 13 ? 'ALL CLEARED!' : 'choose a portal'}
+        {completedCount}/{totalLevels} websites fixed — {completedCount === totalLevels ? 'ALL CLEARED!' : 'choose a portal'}
       </p>
 
       {/* Portals grid */}
@@ -156,20 +206,99 @@ export default function HubPage() {
         position: 'relative',
         zIndex: 1,
       }}>
-        <Portal level="chess" label="Chess" href="/levels/chess" color="#ffcc00" />
         <Portal level="button" label="Button" href="/levels/button" color="#ff3355" />
+        <Portal level="timer" label="Timer" href="/levels/timer" color="#00ff88" />
         <Portal level="cursor" label="Cursor" href="/levels/cursor" color="#4488ff" />
         <Portal level="login" label="Login" href="/levels/login" color="#aa44ff" />
-        <Portal level="timer" label="Timer" href="/levels/timer" color="#00ff88" />
+        <Portal level="chess" label="Chess" href="/levels/chess" color="#ffcc00" />
         <Portal level="checkmate" label="Checkmate" href="/levels/checkmate" color="#ff8800" />
-        <Portal level="lights" label="Turn Light On" href="/levels/lights" color="#ffd166" />
         <Portal level="race" label="Race" href="/levels/race" color="#00ccff" />
+        <Portal level="blue-dot" label="Blue Dot" href="/levels/blue-dot" color="#2d7dff" />
         <Portal level="cursed" label="Cursed Domain" href="/levels/cursed" color="#8B00FF" />
         <Portal level="bedroom" label="Bedroom" href="/levels/bedroom-0804" color="#ff6699" />
-        <Portal level="blue-dot" label="Blue Dot" href="/levels/blue-dot" color="#2d7dff" />
         <Portal level="labyrinth" label="Labyrinth" href="/levels/labyrinth" color="#22d4aa" />
         <Portal level="rubik" label="Rubik Glitch" href="/levels/rubik" color="#fca311" />
+        <Portal level="lights" label="Turn Light On" href="/levels/lights" color="#ffd166" />
       </div>
+
+      {lightsDone && (
+        <div style={{
+          marginTop: '36px',
+          position: 'relative',
+          zIndex: 2,
+          opacity: entered ? 1 : 0,
+          transition: 'opacity 1.2s ease',
+          textAlign: 'center',
+        }}>
+          <div
+            onClick={() => {
+              if (blackDoorOpen) {
+                router.push('/levels/blacknet');
+              } else {
+                router.push('/profile');
+              }
+            }}
+            style={{
+              width: '220px',
+              height: '260px',
+              margin: '0 auto',
+              borderRadius: '90px 90px 0 0',
+              border: '3px solid #121212',
+              background: blackDoorOpen
+                ? 'radial-gradient(ellipse at center, #1f2a33 0%, #0b0d12 60%, #07080b 100%)'
+                : 'radial-gradient(ellipse at center, #0a0a0a 0%, #050505 65%, #000 100%)',
+              boxShadow: blackDoorOpen
+                ? '0 0 40px rgba(94,200,200,0.35), inset 0 0 24px rgba(90,190,210,0.2)'
+                : '0 0 26px rgba(0,0,0,0.8), inset 0 0 18px rgba(255,255,255,0.04)',
+              transform: doorAnimating ? 'perspective(900px) rotateY(-72deg)' : 'perspective(900px) rotateY(0deg)',
+              transformOrigin: 'left center',
+              transition: 'transform 1.6s cubic-bezier(0.2, 0.9, 0.2, 1)',
+              cursor: 'pointer',
+              position: 'relative',
+              overflow: 'hidden',
+            }}
+          >
+            <div style={{
+              position: 'absolute',
+              left: '22px',
+              top: '44px',
+              width: '6px',
+              height: '170px',
+              background: 'rgba(255,255,255,0.08)',
+            }} />
+            {!blackDoorOpen && !doorAnimating && (
+              <div style={{
+                position: 'absolute',
+                right: '34px',
+                top: '126px',
+                width: '14px',
+                height: '14px',
+                borderRadius: '50%',
+                background: '#2d2d2d',
+                boxShadow: '0 0 8px rgba(255,255,255,0.1)',
+              }} />
+            )}
+          </div>
+
+          <div style={{
+            marginTop: '12px',
+            fontFamily: 'var(--font-pixel)',
+            fontSize: '9px',
+            letterSpacing: '1px',
+            color: blackDoorOpen ? '#9ddde1' : '#7f8791',
+          }}>
+            {blackDoorOpen ? 'BLACKNET DOOR OPEN' : 'BLACK DOOR LOCKED'}
+          </div>
+          <div style={{
+            marginTop: '4px',
+            fontFamily: 'var(--font-terminal)',
+            fontSize: '15px',
+            color: '#aab2bc',
+          }}>
+            {blackDoorOpen ? 'Enter Blacknet' : 'Find the hidden key in profile'}
+          </div>
+        </div>
+      )}
 
       {/* Final portal */}
       {allCompleted && (
@@ -220,6 +349,14 @@ export default function HubPage() {
         >
           Create profile to save score →
         </div>
+      )}
+
+      {showKeyHint && (
+        <MessageBox
+          type="info"
+          message="A new black door appeared. Find the hidden key of the door."
+          onClose={() => setShowKeyHint(false)}
+        />
       )}
     </div>
   );

@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import db, { isDatabaseConfigurationError } from '@/lib/db';
 
-const VALID_LEVELS = ['chess', 'button', 'cursor', 'login', 'timer', 'checkmate', 'lights', 'race', 'cursed', 'bedroom', 'blue-dot', 'labyrinth', 'rubik'];
+const VALID_LEVELS = ['chess', 'button', 'cursor', 'login', 'timer', 'checkmate', 'lights', 'race', 'cursed', 'bedroom', 'blue-dot', 'labyrinth', 'rubik', 'blacknet'];
 
 async function getPlayerData(username: string) {
   const playerRes = await db.query(
-    'SELECT id, username, levels_completed, total_attempts, started_at, completed_at FROM players WHERE username = $1',
+    'SELECT id, username, levels_completed, total_attempts, started_at, completed_at, electrician_tag FROM players WHERE username = $1',
     [username]
   );
   if (playerRes.rows.length === 0) return null;
@@ -31,6 +31,7 @@ async function getPlayerData(username: string) {
     total_attempts: player.total_attempts,
     started_at: player.started_at ? Number(player.started_at) : null,
     completed_at: player.completed_at ? Number(player.completed_at) : null,
+    electrician_tag: Boolean(player.electrician_tag),
     levels,
   };
 }
@@ -138,6 +139,16 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ player });
       }
 
+      case 'set_electrician_tag': {
+        await db.query(
+          'UPDATE players SET electrician_tag = true, updated_at = NOW() WHERE username = $1',
+          [clean]
+        );
+        const player = await getPlayerData(clean);
+        if (!player) return NextResponse.json({ error: 'Player not found' }, { status: 404 });
+        return NextResponse.json({ player });
+      }
+
       default:
         return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
     }
@@ -155,7 +166,7 @@ export async function GET() {
     message: 'Broken Internet API',
     endpoints: {
       POST: {
-        actions: ['get_progress', 'complete_level', 'add_attempt', 'start_timer', 'reset'],
+        actions: ['get_progress', 'complete_level', 'add_attempt', 'start_timer', 'reset', 'set_electrician_tag'],
         body: { username: 'string', action: 'string', level_name: 'string (optional)' },
       },
     },

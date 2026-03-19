@@ -1,9 +1,10 @@
 'use client';
 
-import React, { ReactNode } from 'react';
+import React, { ReactNode, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import RageCounter from './RageCounter';
-import { LevelName } from '../context/GameContext';
+import { LevelName, useGame } from '../context/GameContext';
 
 interface LevelLayoutProps {
   children: ReactNode;
@@ -12,6 +13,23 @@ interface LevelLayoutProps {
 }
 
 export default function LevelLayout({ children, levelName, title }: LevelLayoutProps) {
+  const router = useRouter();
+  const { gameState, isLevelUnlocked } = useGame();
+
+  useEffect(() => {
+    if (!gameState.profile) {
+      router.replace('/intro');
+      return;
+    }
+    if (!isLevelUnlocked(levelName)) {
+      router.replace('/hub');
+    }
+  }, [gameState.profile, isLevelUnlocked, levelName, router]);
+
+  if (!gameState.profile || !isLevelUnlocked(levelName)) {
+    return null;
+  }
+
   return (
     <div style={{
       minHeight: '100vh',

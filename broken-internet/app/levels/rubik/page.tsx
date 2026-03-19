@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import LevelLayout from '../../components/LevelLayout';
 import MessageBox from '../../components/MessageBox';
@@ -27,7 +27,10 @@ const FACE_COLORS = [
 
 const FACE_NAMES = ['U', 'D', 'F', 'B', 'L', 'R', 'X', 'Y', 'Z'];
 const CENTER_INDEX = 4;
-const TRIPLE_CLICK_WINDOW_MS = 900;
+const DOUBLE_CLICK_WINDOW_MS = 700;
+const CHAOS_LOSS_ATTEMPTS = 2;
+const HIDDEN_HELP_AFTER_FAILS = 2;
+const HELP_PENALTY_MS = 2 * 60 * 1000;
 
 function createSolvedBoard(): string[][] {
   return FACE_COLORS.map(color => Array.from({ length: 9 }, () => color));
@@ -95,7 +98,7 @@ function remixBoard(): string[][] {
   return board;
 }
 
-function injectTrapSwap(board: string[][], lockedFaces: boolean[]): string[][] {
+function injectCascadeSwaps(board: string[][], lockedFaces: boolean[], tileCount: number): string[][] {
   const next = board.map(face => [...face]);
   const candidates: Pick[] = [];
 
@@ -108,34 +111,48 @@ function injectTrapSwap(board: string[][], lockedFaces: boolean[]): string[][] {
   }
 
   const mixed = shuffled(candidates);
-  for (let i = 0; i < mixed.length; i += 1) {
-    for (let j = i + 1; j < mixed.length; j += 1) {
-      if (mixed[i].face === mixed[j].face) continue;
-      const a = mixed[i];
-      const b = mixed[j];
+  const pairCount = Math.min(Math.floor(tileCount / 2), Math.floor(mixed.length / 2));
+  let cursor = 0;
+
+  for (let pair = 0; pair < pairCount; pair += 1) {
+    while (cursor + 1 < mixed.length) {
+      const a = mixed[cursor];
+      const b = mixed[cursor + 1];
+      cursor += 2;
+      if (a.face === b.face) continue;
       const temp = next[a.face][a.index];
       next[a.face][a.index] = next[b.face][b.index];
       next[b.face][b.index] = temp;
-      return next;
+      break;
     }
   }
 
   return next;
 }
 
+function pickRandomSubset(faces: number[], count: number): number[] {
+  if (count <= 0) return [];
+  return shuffled(faces).slice(0, Math.min(count, faces.length));
+}
+
 export default function RubikLevel() {
   const router = useRouter();
-  const { completeLevel, addAttempt } = useGame();
+  const { completeLevel, addAttempt, adjustSpeedrunTime } = useGame();
 
   const [board, setBoard] = useState<string[][]>(createSolvedBoard);
   const [lockedFaces, setLockedFaces] = useState<boolean[]>(Array.from({ length: 9 }, () => false));
-  const [selected, setSelected] = useState<Pick | null>(null);
-  const [message, setMessage] = useState('Click two non-center tiles to swap their colors.');
-  const [centerClicks, setCenterClicks] = useState<CenterClickState[]>(
+  const [selectedTiles, setSelectedTiles] = useState<Pick[]>([]);
+  const [message, setMessage] = useState('Right-click tiles to multi-select. Left-click a center to fill that face.');
+  const [trapTriggered, setTrapTriggered] = useState(false);
+  const [chaosAttempts, setChaosAttempts] = useState(0);
+  const [chaosTileCount, setChaosTileCount] = useState(4);
+  const [hardLost, setHardLost] = useState(false);
+  const [consecutiveFails, setConsecutiveFails] = useState(0);
+  const [showHelpConfirm, setShowHelpConfirm] = useState(false);
+  const [won, setWon] = useState(false);
+  const centerClicksRef = useRef<CenterClickState[]>(
     Array.from({ length: 9 }, () => ({ count: 0, lastAt: 0 }))
   );
-  const [trapTriggered, setTrapTriggered] = useState(false);
-  const [won, setWon] = useState(false);
 
   const solvedFaces = useMemo(() => {
     return Array.from({ length: 9 }, (_, face) => isFaceSolved(board, face));
@@ -153,66 +170,179 @@ export default function RubikLevel() {
     const allSolved = solvedFaces.every(Boolean);
     const allLocked = lockedFaces.every(Boolean);
 
-    if (allSolved && allLocked) {
+    if (allSolved && allLocked && !hardLost) {
       setWon(true);
+      setConsecutiveFails(0);
       completeLevel('rubik');
     } else if (allSolved && !allLocked) {
-      setMessage('All faces solved, but unstable. Triple-click each solved center to lock every face.');
+      setMessage('All faces solved, but unstable. Double-click each solved center to lock every face.');
     }
-  }, [completeLevel, lockedFaces, solvedFaces, won]);
+  }, [completeLevel, hardLost, lockedFaces, solvedFaces, won]);
+
+  const applySwapResult = (nextBoard: string[][], beforeMismatch: number, afterMismatch: number) => {
+    if (beforeMismatch === 2 && afterMismatch === 0 && lockedCount < 7) {
+      const cascaded = injectCascadeSwaps(nextBoard, lockedFaces, chaosTileCount);
+      const nextAttempt = chaosAttempts + 1;
+
+      setBoard(cascaded);
+      setTrapTriggered(true);
+      setChaosAttempts(nextAttempt);
+      setChaosTileCount(prev => prev + 2);
+
+      if (nextAttempt >= CHAOS_LOSS_ATTEMPTS) {
+        setHardLost(true);
+        setConsecutiveFails(prev => prev + 1);
+        setMessage('YOU LOST. Unlocked faces collapsed into chaos. Press RETRY to restart from zero.');
+      } else {
+        setMessage(`Instability! ${chaosTileCount} unlocked tiles swapped (${nextAttempt}/${CHAOS_LOSS_ATTEMPTS}). Press RETRY or risk total collapse.`);
+      }
+      return;
+    }
+
+    setBoard(nextBoard);
+  };
 
   const resetRound = () => {
-    setBoard(remixBoard());
-    setLockedFaces(Array.from({ length: 9 }, () => false));
-    setSelected(null);
+    const previousLocked = lockedFaces
+      .map((isLocked, face) => (isLocked ? face : -1))
+      .filter(face => face >= 0);
+    const preserveRatio = 0.2 + Math.random() * 0.35;
+    const preserveCount = Math.floor(previousLocked.length * preserveRatio);
+    const preservedFaces = pickRandomSubset(previousLocked, preserveCount);
+
+    const freshBoard = remixBoard();
+    const nextLocked = Array.from({ length: 9 }, () => false);
+
+    for (const face of preservedFaces) {
+      nextLocked[face] = true;
+      for (let i = 0; i < 9; i += 1) {
+        freshBoard[face][i] = FACE_COLORS[face];
+      }
+    }
+
+    setBoard(freshBoard);
+    setLockedFaces(nextLocked);
+    setSelectedTiles([]);
     setTrapTriggered(false);
-    setCenterClicks(Array.from({ length: 9 }, () => ({ count: 0, lastAt: 0 })));
-    setMessage('Board remixed. Start over.');
+    setHardLost(false);
+    setChaosAttempts(0);
+    setChaosTileCount(4);
+    setShowHelpConfirm(false);
+    centerClicksRef.current = Array.from({ length: 9 }, () => ({ count: 0, lastAt: 0 }));
+
+    if (preservedFaces.length > 0) {
+      setMessage(`Board remixed. Saved ${preservedFaces.length} locked face(s) (${Math.round(preserveRatio * 100)}%).`);
+    } else {
+      setMessage('Board remixed. Start over from zero.');
+    }
     addAttempt('rubik');
   };
 
   const handleCenterClick = (face: number) => {
+    if (won || hardLost) return;
+
+    if (selectedTiles.length > 0) {
+      if (lockedFaces[face]) {
+        setMessage(`Face ${FACE_NAMES[face]} is locked and cannot receive moved tiles.`);
+        return;
+      }
+
+      const targets = Array.from({ length: 9 }, (_, i) => i)
+        .filter(i => i !== CENTER_INDEX)
+        .map(index => ({ face, index }))
+        .filter(slot => !selectedTiles.some(sel => sel.face === slot.face && sel.index === slot.index));
+
+      if (targets.length === 0) {
+        setSelectedTiles([]);
+        setMessage('No available tiles on this face for batch move.');
+        return;
+      }
+
+      const moveCount = Math.min(selectedTiles.length, targets.length);
+      let moved = board.map(faceTiles => [...faceTiles]);
+
+      for (let i = 0; i < moveCount; i += 1) {
+        const src = selectedTiles[i];
+        const dst = targets[i];
+        const temp = moved[src.face][src.index];
+        moved[src.face][src.index] = moved[dst.face][dst.index];
+        moved[dst.face][dst.index] = temp;
+      }
+
+      const beforeMismatch = countMismatches(board);
+      const afterMismatch = countMismatches(moved);
+      setSelectedTiles([]);
+      applySwapResult(moved, beforeMismatch, afterMismatch);
+      setMessage(`Moved ${moveCount} selected tile(s) into face ${FACE_NAMES[face]}.`);
+      return;
+    }
+
     if (lockedFaces[face]) {
       setMessage(`Face ${FACE_NAMES[face]} is already locked.`);
       return;
     }
 
     if (!solvedFaces[face]) {
-      setMessage(`Center is fixed. Solve face ${FACE_NAMES[face]} first, then triple-click its center to lock it.`);
+      setMessage(`Center is fixed. Solve face ${FACE_NAMES[face]} first, then double-click its center to lock it.`);
       return;
     }
 
     const now = Date.now();
-    setCenterClicks(prev => {
-      const next = [...prev];
-      const state = next[face];
-      const fastEnough = now - state.lastAt <= TRIPLE_CLICK_WINDOW_MS;
-      const count = fastEnough ? state.count + 1 : 1;
-      next[face] = { count, lastAt: now };
+    const state = centerClicksRef.current[face];
+    const fastEnough = now - state.lastAt <= DOUBLE_CLICK_WINDOW_MS;
+    const count = fastEnough ? state.count + 1 : 1;
+    centerClicksRef.current[face] = { count, lastAt: now };
 
-      if (count >= 3) {
-        setLockedFaces(old => {
-          const locked = [...old];
-          locked[face] = true;
-          return locked;
-        });
-        setSelected(current => (current?.face === face ? null : current));
-        next[face] = { count: 0, lastAt: 0 };
-        setMessage(`Face ${FACE_NAMES[face]} locked. Keep going.`);
-      } else {
-        setMessage(`Face ${FACE_NAMES[face]} solved. Center clicks: ${count}/3.`);
+    if (count >= 2) {
+      setLockedFaces(old => {
+        const locked = [...old];
+        locked[face] = true;
+        return locked;
+      });
+      setSelectedTiles(current => current.filter(sel => sel.face !== face));
+      centerClicksRef.current[face] = { count: 0, lastAt: 0 };
+      setMessage(`Face ${FACE_NAMES[face]} locked. Keep going.`);
+    } else {
+      setMessage(`Face ${FACE_NAMES[face]} solved. Center confirmation: ${count}/2.`);
+    }
+  };
+
+  const toggleSelectedTile = (face: number, index: number) => {
+    if (won || hardLost) return;
+    if (lockedFaces[face]) {
+      setMessage(`Face ${FACE_NAMES[face]} is locked and cannot be selected.`);
+      return;
+    }
+    if (index === CENTER_INDEX) {
+      setMessage('Use left-click on a center tile to fill that face from selected tiles.');
+      return;
+    }
+
+    setSelectedTiles(prev => {
+      const exists = prev.some(sel => sel.face === face && sel.index === index);
+      if (exists) {
+        const filtered = prev.filter(sel => !(sel.face === face && sel.index === index));
+        setMessage(filtered.length > 0 ? `${filtered.length} tile(s) selected.` : 'Selection cleared.');
+        return filtered;
       }
 
+      const next = [...prev, { face, index }];
+      setMessage(`${next.length} tile(s) selected. Left-click a center tile to batch-move.`);
       return next;
     });
   };
 
   const handleTileClick = (face: number, index: number) => {
     if (won) return;
+    if (hardLost) {
+      setMessage('YOU LOST. Press RETRY to restart from zero.');
+      return;
+    }
 
     if (trapTriggered) {
-      setMessage('Cube instability detected. Press Retry to remix and restart.');
-      return;
+      if (!selectedTiles.length && index !== CENTER_INDEX) {
+        setMessage('Cube instability detected. RETRY is recommended before more swaps.');
+      }
     }
 
     if (lockedFaces[face]) {
@@ -225,20 +355,25 @@ export default function RubikLevel() {
       return;
     }
 
-    if (!selected) {
-      setSelected({ face, index });
+    if (!selectedTiles.length) {
+      setSelectedTiles([{ face, index }]);
       setMessage(`Selected tile on face ${FACE_NAMES[face]}. Pick another tile to swap.`);
       return;
     }
 
-    if (selected.face === face && selected.index === index) {
-      setSelected(null);
+    if (selectedTiles.length === 1 && selectedTiles[0].face === face && selectedTiles[0].index === index) {
+      setSelectedTiles([]);
       setMessage('Selection canceled.');
       return;
     }
 
-    const first = selected;
-    setSelected(null);
+    if (selectedTiles.length > 1) {
+      setMessage('You have a multi-selection. Left-click a center tile to batch-move.');
+      return;
+    }
+
+    const first = selectedTiles[0];
+    setSelectedTiles([]);
 
     if (lockedFaces[first.face]) {
       setMessage(`Face ${FACE_NAMES[first.face]} is locked and cannot be changed.`);
@@ -249,26 +384,25 @@ export default function RubikLevel() {
     const beforeMismatch = countMismatches(board);
     const afterMismatch = countMismatches(swapped);
 
-    if (beforeMismatch === 2 && afterMismatch === 0) {
-      const trapped = injectTrapSwap(swapped, lockedFaces);
-      setBoard(trapped);
-      setTrapTriggered(true);
-      setMessage('Last-2 trap triggered. Two other tiles jumped across faces. Press Retry.');
-      return;
-    }
-
-    setBoard(swapped);
+    applySwapResult(swapped, beforeMismatch, afterMismatch);
 
     const nowSolved = isFaceSolved(swapped, face);
     const firstSolved = isFaceSolved(swapped, first.face);
     if (nowSolved || firstSolved) {
       const solvedFace = nowSolved ? face : first.face;
       if (!lockedFaces[solvedFace]) {
-        setMessage(`Face ${FACE_NAMES[solvedFace]} solved. Triple-click its center tile to lock it.`);
+        setMessage(`Face ${FACE_NAMES[solvedFace]} solved. Double-click its center tile to lock it.`);
       }
     } else {
       setMessage('Swap complete. Keep arranging by face color.');
     }
+  };
+
+  const handleConfirmHelpWin = () => {
+    adjustSpeedrunTime(HELP_PENALTY_MS);
+    completeLevel('rubik');
+    setWon(true);
+    setConsecutiveFails(0);
   };
 
   if (won) {
@@ -350,10 +484,12 @@ export default function RubikLevel() {
               marginBottom: '14px',
               padding: '10px 12px',
               borderRadius: '6px',
-              border: '1px solid rgba(130, 172, 235, 0.25)',
+              border: hardLost
+                ? '1px solid rgba(255, 90, 120, 0.5)'
+                : '1px solid rgba(130, 172, 235, 0.25)',
               fontFamily: 'var(--font-terminal)',
               fontSize: '14px',
-              color: '#a7caf5',
+              color: hardLost ? '#ff9fb0' : '#a7caf5',
               minHeight: '44px',
             }}
           >
@@ -402,13 +538,17 @@ export default function RubikLevel() {
                 >
                   {faceTiles.map((color, index) => {
                     const isCenter = index === CENTER_INDEX;
-                    const isSelected = selected?.face === face && selected.index === index;
+                    const isSelected = selectedTiles.some(sel => sel.face === face && sel.index === index);
                     const isFixed = isCenter || lockedFaces[face];
 
                     return (
                       <button
                         key={`tile-${face}-${index}`}
                         onClick={() => handleTileClick(face, index)}
+                        onContextMenu={(event) => {
+                          event.preventDefault();
+                          toggleSelectedTile(face, index);
+                        }}
                         style={{
                           width: '100%',
                           aspectRatio: '1 / 1',
@@ -445,6 +585,79 @@ export default function RubikLevel() {
               </div>
             ))}
           </div>
+
+          {consecutiveFails >= HIDDEN_HELP_AFTER_FAILS && (
+            <div style={{ marginTop: '650px', paddingTop: '40px' }}>
+              {!showHelpConfirm && (
+                <button
+                  onClick={() => setShowHelpConfirm(true)}
+                  style={{
+                    fontFamily: 'var(--font-pixel)',
+                    fontSize: '8px',
+                    padding: '8px 10px',
+                    border: '1px solid rgba(255,255,255,0.2)',
+                    borderRadius: '4px',
+                    background: 'rgba(255,255,255,0.04)',
+                    color: '#9ab7db',
+                    cursor: 'pointer',
+                  }}
+                >
+                  hidden override
+                </button>
+              )}
+
+              {showHelpConfirm && (
+                <div style={{ marginTop: '12px', maxWidth: '520px' }}>
+                  <div
+                    style={{
+                      marginBottom: '10px',
+                      padding: '10px 12px',
+                      borderRadius: '6px',
+                      border: '1px solid rgba(255, 145, 0, 0.45)',
+                      background: 'rgba(255, 145, 0, 0.08)',
+                      fontFamily: 'var(--font-terminal)',
+                      fontSize: '14px',
+                      color: '#ffcf95',
+                    }}
+                  >
+                    if you click confirm you win the level but lose 2min in the speedruntimer
+                  </div>
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <button
+                      onClick={handleConfirmHelpWin}
+                      style={{
+                        fontFamily: 'var(--font-pixel)',
+                        fontSize: '9px',
+                        padding: '8px 12px',
+                        border: '1px solid #ff9c54',
+                        borderRadius: '4px',
+                        background: 'rgba(255, 140, 60, 0.14)',
+                        color: '#ffd2a8',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      CONFIRM
+                    </button>
+                    <button
+                      onClick={() => setShowHelpConfirm(false)}
+                      style={{
+                        fontFamily: 'var(--font-pixel)',
+                        fontSize: '9px',
+                        padding: '8px 12px',
+                        border: '1px solid rgba(180, 200, 230, 0.4)',
+                        borderRadius: '4px',
+                        background: 'rgba(180, 200, 230, 0.08)',
+                        color: '#b7cae7',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      CANCEL
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </LevelLayout>

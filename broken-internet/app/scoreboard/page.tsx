@@ -17,6 +17,7 @@ export default function ScoreboardPage() {
   const router = useRouter();
   const { getAllProfiles, gameState } = useGame();
   const [scores, setScores] = useState<ProfileEntry[]>([]);
+  const totalLevels = Object.keys(gameState.levels).length;
 
   useEffect(() => {
     getAllProfiles().then(setScores);
@@ -109,14 +110,26 @@ export default function ScoreboardPage() {
                 }}>
                   {entry.username}
                   {isMe && <span style={{ fontSize: '7px', color: 'var(--accent-purple)', marginLeft: '6px' }}>(you)</span>}
+                  {entry.electricianTag && (
+                    <span style={{
+                      fontSize: '7px',
+                      color: '#ffd166',
+                      marginLeft: '6px',
+                      border: '1px solid #ffd166',
+                      borderRadius: '999px',
+                      padding: '1px 4px',
+                    }}>
+                      electricien
+                    </span>
+                  )}
                 </span>
 
                 <span style={{
                   textAlign: 'center',
                   fontFamily: 'var(--font-pixel)', fontSize: '10px',
-                  color: entry.levelsCompleted === 5 ? 'var(--accent-green)' : 'var(--text-secondary)',
+                  color: entry.levelsCompleted >= totalLevels ? 'var(--accent-green)' : 'var(--text-secondary)',
                 }}>
-                  {entry.levelsCompleted}/7
+                  {entry.levelsCompleted}/{totalLevels}
                 </span>
 
                 <span style={{

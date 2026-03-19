@@ -17,6 +17,14 @@ export default function TimerLevel() {
   const [waitMsg, setWaitMsg] = useState('');
   const hasCheckedRef = useRef(false);
 
+  const restartFakeLose = () => {
+    addAttempt('timer');
+    sessionStorage.removeItem(TIMER_KEY);
+    setTimeLeft(10);
+    setTimerDone(false);
+    setWaitMsg('');
+  };
+
   // Check if this is a refresh (second visit)
   useEffect(() => {
     if (hasCheckedRef.current) return;
@@ -46,17 +54,7 @@ export default function TimerLevel() {
 
   const handleClickAnything = () => {
     if (solved || !timerDone) return;
-    addAttempt('timer');
-    const messages = [
-      "Nothing happened.",
-      "Still nothing.",
-      "The page is mocking you.",
-      "Maybe the answer isn't on this page...",
-      "What if you... refreshed?",
-    ];
-    const idx = Math.min(Math.floor(Math.random() * messages.length), messages.length - 1);
-    setWaitMsg(messages[idx]);
-    setTimeout(() => setWaitMsg(''), 2500);
+    restartFakeLose();
   };
 
   return (
@@ -130,14 +128,14 @@ export default function TimerLevel() {
               marginBottom: '20px',
               animation: 'glitchText 0.5s infinite',
             }}>
-              TIME&apos;S UP!
+              YOU LOSE
             </p>
             <p style={{
               fontFamily: 'var(--font-terminal)',
-              fontSize: '22px',
+              fontSize: '20px',
               color: 'var(--text-secondary)',
             }}>
-              ...
+              Session expired. Click anywhere to retry.
             </p>
             <p style={{
               fontFamily: 'var(--font-terminal)',
@@ -145,7 +143,7 @@ export default function TimerLevel() {
               color: 'var(--text-secondary)',
               marginTop: '20px',
             }}>
-              Nothing happened. Now what?
+              The obvious move is to start over. That's all I'll say.
             </p>
           </div>
         )}

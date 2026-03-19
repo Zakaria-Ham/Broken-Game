@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import LevelLayout from '../../components/LevelLayout';
 import MessageBox from '../../components/MessageBox';
@@ -13,22 +13,59 @@ type Position = {
   y: number;
 };
 
-const GRID_SIZE = 9;
+const GRID_SIZE = 15;
 const SPAWN: Position = { x: Math.floor(GRID_SIZE / 2), y: Math.floor(GRID_SIZE / 2) };
-const SEQUENCE: Token[] = ['UP', 'UP', 'DOWN', 'DOWN', 'LEFT', 'RIGHT', 'LEFT', 'RIGHT', 'A', 'B'];
+const SEQUENCE: Token[] = ['UP', 'UP', 'DOWN', 'DOWN', 'LEFT', 'RIGHT', 'LEFT', 'RIGHT', 'B', 'A'];
 const STEP_TIMEOUT_MS = 2200;
 const SONAR_PULSE_MS = 1500;
 const SONAR_VISIBLE_MS = 170;
 
-const BLOCKED_CELLS = new Set<string>([
-  '1,1', '2,1', '3,1', '5,1', '6,1', '7,1',
-  '1,2', '3,2', '5,2', '7,2',
-  '1,3', '2,3', '6,3', '7,3',
-  '0,4', '1,4', '7,4', '8,4',
-  '1,5', '2,5', '6,5', '7,5',
-  '1,6', '3,6', '5,6', '7,6',
-  '1,7', '2,7', '3,7', '5,7', '6,7', '7,7',
-]);
+function buildBlockedCells(): Set<string> {
+  const blocked = new Set<string>();
+
+  for (let y = 0; y < GRID_SIZE; y++) {
+    for (let x = 0; x < GRID_SIZE; x++) {
+      const isBorder = x === 0 || y === 0 || x === GRID_SIZE - 1 || y === GRID_SIZE - 1;
+      const verticalPattern = x % 2 === 0 && y % 3 !== 1;
+      const horizontalPattern = y % 2 === 0 && x % 3 !== 1;
+      const diagonalNoise = (x + y) % 5 === 0;
+
+      if (isBorder || verticalPattern || horizontalPattern || diagonalNoise) {
+        blocked.add(`${x},${y}`);
+      }
+    }
+  }
+
+  // Carve dense corridors around the center so movement remains technical but fair.
+  const carveRows = [SPAWN.y - 2, SPAWN.y - 1, SPAWN.y, SPAWN.y + 1, SPAWN.y + 2];
+  for (const y of carveRows) {
+    for (let x = 2; x <= GRID_SIZE - 3; x++) {
+      blocked.delete(`${x},${y}`);
+    }
+  }
+
+  const carveCols = [SPAWN.x - 2, SPAWN.x - 1, SPAWN.x, SPAWN.x + 1, SPAWN.x + 2];
+  for (const x of carveCols) {
+    for (let y = 2; y <= GRID_SIZE - 3; y++) {
+      blocked.delete(`${x},${y}`);
+    }
+  }
+
+  // Preserve the canonical spawn-based solution path exactly.
+  const requiredPath: Position[] = [
+    { x: SPAWN.x, y: SPAWN.y },
+    { x: SPAWN.x, y: SPAWN.y - 1 },
+    { x: SPAWN.x, y: SPAWN.y - 2 },
+    { x: SPAWN.x - 1, y: SPAWN.y },
+  ];
+  for (const pos of requiredPath) {
+    blocked.delete(`${pos.x},${pos.y}`);
+  }
+
+  return blocked;
+}
+
+const BLOCKED_CELLS = buildBlockedCells();
 
 function keyFor(pos: Position): string {
   return `${pos.x},${pos.y}`;
@@ -56,6 +93,7 @@ function toToken(key: string): Token | null {
 export default function LabyrinthLevel() {
   const router = useRouter();
   const { completeLevel, addAttempt } = useGame();
+  const hintCommentRef = useRef<Comment | null>(null);
 
   const [playerPos, setPlayerPos] = useState<Position>(SPAWN);
   const [sequenceIndex, setSequenceIndex] = useState(0);
@@ -77,6 +115,20 @@ export default function LabyrinthLevel() {
   useEffect(() => {
     addAttempt('labyrinth');
   }, [addAttempt]);
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const hint = document.createComment(' labyrinth hint: up up down down left right left right b a ');
+    document.body.prepend(hint);
+    hintCommentRef.current = hint;
+
+    return () => {
+      if (hintCommentRef.current?.parentNode) {
+        hintCommentRef.current.parentNode.removeChild(hintCommentRef.current);
+      }
+      hintCommentRef.current = null;
+    };
+  }, []);
 
   useEffect(() => {
     if (won) return;
@@ -180,7 +232,6 @@ export default function LabyrinthLevel() {
 
   return (
     <LevelLayout levelName="labyrinth" title="INVISIBLE LABYRINTH">
-      <div style={{ display: 'none' }} dangerouslySetInnerHTML={{ __html: '<!-- hint: up+ up+ down+ down+ left+ right+ left+ right+ a+ b -->' }} />
       <div
         style={{
           minHeight: 'calc(100vh - 50px)',

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useGame, LevelName } from '../context/GameContext';
 
@@ -12,8 +12,27 @@ export default function ProfilePage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [avatarClicks, setAvatarClicks] = useState(0);
+  const [avatarLastClickAt, setAvatarLastClickAt] = useState(0);
+  const [showHiddenKey, setShowHiddenKey] = useState(false);
+  const [blackDoorAlreadyOpened, setBlackDoorAlreadyOpened] = useState(false);
 
   const profile = gameState.profile;
+
+  useEffect(() => {
+    if (!profile || !gameState.levels.lights.completed) {
+      setShowHiddenKey(false);
+      setBlackDoorAlreadyOpened(false);
+      return;
+    }
+
+    const openedKey = `broken-internet:black-door-opened:${profile.username}`;
+    const opened = localStorage.getItem(openedKey) === '1';
+    setBlackDoorAlreadyOpened(opened);
+    if (opened) {
+      setShowHiddenKey(false);
+    }
+  }, [gameState.levels.lights.completed, profile]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,6 +54,7 @@ export default function ProfilePage() {
   };
 
   const completedCount = Object.values(gameState.levels).filter(l => l.completed).length;
+  const totalLevels = Object.keys(gameState.levels).length;
 
   // Format time
   const formatTime = (ms: number) => {
@@ -49,6 +69,32 @@ export default function ProfilePage() {
   const elapsed = gameState.startedAt
     ? (gameState.completedAt || Date.now()) - gameState.startedAt
     : 0;
+
+  const canRevealDoorKey = Boolean(
+    profile && gameState.levels.lights.completed && !blackDoorAlreadyOpened
+  );
+
+  const onAvatarClick = () => {
+    if (!canRevealDoorKey || showHiddenKey) return;
+
+    const now = Date.now();
+    const rapid = now - avatarLastClickAt <= 700;
+    const nextClicks = rapid ? avatarClicks + 1 : 1;
+    setAvatarClicks(nextClicks);
+    setAvatarLastClickAt(now);
+
+    if (nextClicks >= 2) {
+      setShowHiddenKey(true);
+      setSuccess('Hidden key discovered. Click it.');
+      setAvatarClicks(0);
+    }
+  };
+
+  const onHiddenKeyClick = () => {
+    if (!profile) return;
+    localStorage.setItem(`broken-internet:black-door-opening-pending:${profile.username}`, '1');
+    router.push('/hub');
+  };
 
   return (
     <div style={{
@@ -176,14 +222,40 @@ export default function ProfilePage() {
           padding: '30px', width: '100%', maxWidth: '400px', textAlign: 'center',
         }}>
           {/* Avatar */}
-          <div style={{
+          <div
+            onClick={onAvatarClick}
+            style={{
             width: '80px', height: '80px', margin: '0 auto 20px',
             borderRadius: '50%', background: 'var(--accent-purple)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             fontSize: '36px', fontFamily: 'var(--font-pixel)', color: '#fff',
             boxShadow: '0 0 20px rgba(170,68,255,0.3)',
+            cursor: canRevealDoorKey ? 'pointer' : 'default',
+            border: showHiddenKey ? '1px solid #ffd166' : 'none',
           }}>
-            {profile.username.charAt(0).toUpperCase()}
+            {showHiddenKey ? (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onHiddenKeyClick();
+                }}
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  border: 'none',
+                  borderRadius: '50%',
+                  background: 'radial-gradient(circle, #ffe08a 0%, #d9a934 58%, #8a651c 100%)',
+                  color: '#2a1d08',
+                  fontFamily: 'var(--font-pixel)',
+                  fontSize: '26px',
+                  cursor: 'pointer',
+                }}
+              >
+                🔑
+              </button>
+            ) : (
+              profile.username.charAt(0).toUpperCase()
+            )}
           </div>
 
           <h2 style={{
@@ -192,6 +264,23 @@ export default function ProfilePage() {
           }}>
             {profile.username}
           </h2>
+
+          {profile.electricianTag && (
+            <div style={{
+              marginTop: '-8px',
+              marginBottom: '16px',
+              display: 'inline-block',
+              padding: '6px 10px',
+              border: '1px solid #ffd166',
+              borderRadius: '999px',
+              fontFamily: 'var(--font-pixel)',
+              fontSize: '8px',
+              color: '#ffd166',
+              background: 'rgba(255, 209, 102, 0.1)',
+            }}>
+              electricien
+            </div>
+          )}
 
           {/* Stats grid */}
           <div style={{
@@ -202,7 +291,7 @@ export default function ProfilePage() {
                 Levels
               </div>
               <div style={{ fontFamily: 'var(--font-pixel)', fontSize: '18px', color: 'var(--accent-green)', marginTop: '4px' }}>
-                {completedCount}/7
+                {completedCount}/{totalLevels}
               </div>
             </div>
             <div style={{ background: '#1a1a1a', padding: '14px', borderRadius: '6px' }}>

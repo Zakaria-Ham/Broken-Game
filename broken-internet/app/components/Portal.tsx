@@ -2,6 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useGame, LevelName } from '../context/GameContext';
 
 interface PortalProps {
@@ -12,11 +13,27 @@ interface PortalProps {
 }
 
 export default function Portal({ level, label, href, color }: PortalProps) {
-  const { isLevelCompleted } = useGame();
+  const router = useRouter();
+  const { gameState, isLevelCompleted, isLevelUnlocked } = useGame();
+  const profile = gameState.profile;
   const completed = isLevelCompleted(level);
+  const unlocked = profile ? isLevelUnlocked(level) : false;
 
   return (
-    <Link href={href}>
+    <Link
+      href={!profile ? '/intro' : unlocked ? href : '/hub'}
+      onClick={(e) => {
+        if (!profile) {
+          e.preventDefault();
+          router.push('/intro');
+          return;
+        }
+        if (!unlocked) {
+          e.preventDefault();
+          router.push('/hub');
+        }
+      }}
+    >
       <div style={{
         width: '140px',
         height: '180px',
@@ -24,11 +41,13 @@ export default function Portal({ level, label, href, color }: PortalProps) {
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        cursor: 'pointer',
+        cursor: profile && unlocked ? 'pointer' : 'not-allowed',
+        opacity: profile && unlocked ? 1 : 0.7,
         transition: 'all 0.3s ease',
         position: 'relative',
       }}
         onMouseEnter={e => {
+          if (!profile || !unlocked) return;
           e.currentTarget.style.transform = 'scale(1.1)';
         }}
         onMouseLeave={e => {
@@ -84,7 +103,7 @@ export default function Portal({ level, label, href, color }: PortalProps) {
           fontFamily: 'var(--font-terminal)',
           color: completed ? 'var(--accent-green)' : 'var(--text-secondary)',
         }}>
-          {completed ? 'SOLVED' : 'UNSOLVED'}
+          {!profile ? 'SIGN IN REQUIRED' : !unlocked ? 'LOCKED' : completed ? 'SOLVED' : 'UNSOLVED'}
         </div>
       </div>
     </Link>

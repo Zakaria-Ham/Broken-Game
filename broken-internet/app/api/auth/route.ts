@@ -33,12 +33,12 @@ export async function POST(request: NextRequest) {
       }
 
       const result = await db.query(
-        'INSERT INTO players (username, password_hash) VALUES ($1, $2) RETURNING id, username, created_at',
+        'INSERT INTO players (username, password_hash) VALUES ($1, $2) RETURNING id, username, created_at, electrician_tag',
         [clean, hashed]
       );
 
       // Initialize level_progress rows
-      const levels = ['chess', 'button', 'cursor', 'login', 'timer', 'checkmate', 'lights', 'race', 'cursed', 'bedroom', 'blue-dot', 'labyrinth', 'rubik'];
+      const levels = ['chess', 'button', 'cursor', 'login', 'timer', 'checkmate', 'lights', 'race', 'cursed', 'bedroom', 'blue-dot', 'labyrinth', 'rubik', 'blacknet'];
       for (const level of levels) {
         await db.query(
           'INSERT INTO level_progress (player_id, level_name) VALUES ($1, $2) ON CONFLICT DO NOTHING',
@@ -51,12 +51,13 @@ export async function POST(request: NextRequest) {
           id: result.rows[0].id,
           username: result.rows[0].username,
           createdAt: result.rows[0].created_at,
+          electricianTag: Boolean(result.rows[0].electrician_tag),
         },
       });
 
     } else if (action === 'login') {
       const result = await db.query(
-        'SELECT id, username, created_at FROM players WHERE username = $1 AND password_hash = $2',
+        'SELECT id, username, created_at, electrician_tag FROM players WHERE username = $1 AND password_hash = $2',
         [clean, hashed]
       );
 
@@ -69,6 +70,7 @@ export async function POST(request: NextRequest) {
           id: result.rows[0].id,
           username: result.rows[0].username,
           createdAt: result.rows[0].created_at,
+          electricianTag: Boolean(result.rows[0].electrician_tag),
         },
       });
 

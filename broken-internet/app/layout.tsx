@@ -13,8 +13,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body className="scanline-overlay">
+    <html lang="en" suppressHydrationWarning>
+      <body className="scanline-overlay" suppressHydrationWarning>
         <GameProvider>{children}</GameProvider>
       </body>
     </html>

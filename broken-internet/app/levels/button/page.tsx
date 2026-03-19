@@ -6,11 +6,12 @@ import LevelLayout from '../../components/LevelLayout';
 import MessageBox from '../../components/MessageBox';
 import { useGame } from '../../context/GameContext';
 
+const REQUIRED_HOVER_SECONDS = 15;
+
 export default function ButtonLevel() {
   const router = useRouter();
   const { completeLevel, addAttempt } = useGame();
   const [solved, setSolved] = useState(false);
-  const [hoverTime, setHoverTime] = useState(0);
   const [clicked, setClicked] = useState(false);
   const [msg, setMsg] = useState('');
   const hoverTimer = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -29,8 +30,7 @@ export default function ButtonLevel() {
     hoverStart.current = Date.now();
     hoverTimer.current = setInterval(() => {
       const elapsed = (Date.now() - hoverStart.current) / 1000;
-      setHoverTime(elapsed);
-      if (elapsed >= 3) {
+      if (elapsed >= REQUIRED_HOVER_SECONDS) {
         if (hoverTimer.current) clearInterval(hoverTimer.current);
         setSolved(true);
         completeLevel('button');
@@ -43,10 +43,7 @@ export default function ButtonLevel() {
       clearInterval(hoverTimer.current);
       hoverTimer.current = null;
     }
-    setHoverTime(0);
   }, []);
-
-  const progressWidth = Math.min((hoverTime / 3) * 100, 100);
 
   return (
     <LevelLayout levelName="button" title="BUTTON.EXE">
@@ -72,7 +69,7 @@ export default function ButtonLevel() {
           color: 'var(--text-secondary)',
           marginBottom: '60px',
         }}>
-          A simple task. Just a button.
+          A simple task. Keep your cursor .
         </p>
 
         {/* The button */}
@@ -95,19 +92,6 @@ export default function ButtonLevel() {
             }}
           >
             {solved ? 'DONE!' : 'CLICK ME'}
-
-            {/* Hover progress bar */}
-            {!solved && hoverTime > 0 && (
-              <div style={{
-                position: 'absolute',
-                bottom: 0,
-                left: 0,
-                height: '4px',
-                width: `${progressWidth}%`,
-                background: 'var(--accent-green)',
-                transition: 'width 0.1s linear',
-              }} />
-            )}
           </button>
         </div>
 

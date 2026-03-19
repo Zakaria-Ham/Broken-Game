@@ -34,11 +34,13 @@ async function ensureInitialized() {
           password_hash VARCHAR(255) NOT NULL,
           levels_completed INTEGER DEFAULT 0,
           total_attempts INTEGER DEFAULT 0,
+          electrician_tag BOOLEAN DEFAULT FALSE,
           started_at BIGINT,
           completed_at BIGINT,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
+        ALTER TABLE players ADD COLUMN IF NOT EXISTS electrician_tag BOOLEAN DEFAULT FALSE;
         CREATE TABLE IF NOT EXISTS level_progress (
           id SERIAL PRIMARY KEY,
           player_id INTEGER REFERENCES players(id) ON DELETE CASCADE,
@@ -53,7 +55,7 @@ async function ensureInitialized() {
       `)
       .then(async () => {
         // Ensure all players have rows for every level (handles newly added levels).
-        const levels = ['chess', 'button', 'cursor', 'login', 'timer', 'checkmate', 'race', 'cursed', 'bedroom'];
+        const levels = ['chess', 'button', 'cursor', 'login', 'timer', 'checkmate', 'lights', 'race', 'cursed', 'bedroom', 'blue-dot', 'labyrinth', 'rubik', 'blacknet'];
         await Promise.all(
           levels.map((lvl) =>
             pool.query(
