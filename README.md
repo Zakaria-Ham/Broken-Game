@@ -1051,38 +1051,6 @@ Before considering a feature complete:
 
 ---
 
-# 📷 Screenshots
-
-Add screenshots of the main game screens here.
-
-Recommended screenshots:
-
-```text
-Landing Screen
-     ↓
-Authentication
-     ↓
-Game Hub
-     ↓
-Level Gameplay
-     ↓
-Scoreboard
-     ↓
-Completed Game
-```
-
-Example:
-
-```md
-![Broken Internet Landing Screen](./screenshots/landing.png)
-
-![Broken Internet Gameplay](./screenshots/gameplay.png)
-
-![Broken Internet Scoreboard](./screenshots/scoreboard.png)
-```
-
----
-
 # 🌐 Repository
 
 **GitHub:**
@@ -1093,26 +1061,13 @@ https://github.com/Zakaria-Ham/Broken-Game
 
 ---
 
-# 📄 License
-
-Add the project's license here if/when one is selected.
-
-For example:
-
-```text
-This project is licensed under the MIT License.
-```
-
-If the repository does not currently contain a license file, do not claim that the project is MIT licensed until one is actually added.
-
----
-
 # 👤 Author
 
-**Zakaria-Ham**
+**Zakaria-Ham** and **Akram-sss**
 
 GitHub:
 https://github.com/Zakaria-Ham
+https://github.com/Akram-sss
 
 ---
 
